@@ -1,0 +1,1 @@
+"""SynapCity FastAPI Backend"""
