@@ -1,23 +1,20 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr
+from typing import List, Optional
 from datetime import datetime
 
 class UserBase(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    profileImageUrl: Optional[str] = None
-    subscribedAreas: List[str] = Field(default_factory=list)
+    username: str
+    email: EmailStr
 
 class UserCreate(UserBase):
-    pass
+    password: str
 
-class UserUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    profileImageUrl: Optional[str] = None
-    subscribedAreas: Optional[List[str]] = None
-
-class User(UserBase):
+class UserInDB(UserBase):
     userId: str
     createdAt: datetime
-    
+    profileImageUrl: Optional[str] = None
+    subscribedAreas: List[str] = []
+
+class User(UserInDB):
     class Config:
-        from_attributes = True
+        from_attributes = True 

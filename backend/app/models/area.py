@@ -1,24 +1,19 @@
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, List
 from datetime import datetime
 
-class CrimeTrend(BaseModel):
-    current_level: str
-    trend_direction: str
-    incidents_this_month: int
+class AreaTrend(BaseModel):
+    daily: List[float]
+    weekly: List[float]
+    monthly: List[float]
 
-class WaterShortageTrend(BaseModel):
-    current_status: str
-    frequency: str
-    last_reported: datetime
-
-class AreaData(BaseModel):
+class Area(BaseModel):
     name: str
-    crimeTrend: CrimeTrend
-    powerOutageFrequency: int
-    waterShortageTrend: WaterShortageTrend
+    crimeTrend: Dict[str, AreaTrend]
+    powerOutageFrequency: float
+    waterShortageTrend: Dict[str, AreaTrend]
     overallSentiment: float
     lastUpdatedAt: datetime
     
     class Config:
-        from_attributes = True
+        from_attributes = True 

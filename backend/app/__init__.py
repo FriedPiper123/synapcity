@@ -1,1 +1,1 @@
-"""SynapCity FastAPI Backend"""
+from .main import app 

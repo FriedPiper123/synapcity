@@ -1,67 +1,58 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel
+from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
 
 class PostType(str, Enum):
-    ALERT = "alert"
-    DISCUSSION = "discussion"
-    QUESTION = "question"
-    ANNOUNCEMENT = "announcement"
+    TRAFFIC = "traffic"
+    CIVIC_ISSUE = "civic_issue"
+    COMMUNITY = "community"
+    EVENT = "event"
 
 class PostCategory(str, Enum):
+    ACCIDENT = "accident"
+    CONGESTION = "congestion"
+    ROAD_CLOSURE = "road_closure"
+    POWER_OUTAGE = "power_outage"
+    WATER_SHORTAGE = "water_shortage"
+    WASTE_MANAGEMENT = "waste_management"
     SAFETY = "safety"
-    INFRASTRUCTURE = "infrastructure"
-    COMMUNITY = "community"
-    ENVIRONMENT = "environment"
-    TRANSPORTATION = "transportation"
-    GENERAL = "general"
+    OTHER = "other"
 
 class PostStatus(str, Enum):
     ACTIVE = "active"
-    HIDDEN = "hidden"
-    DELETED = "deleted"
+    RESOLVED = "resolved"
+    PENDING = "pending"
 
-class CommentBase(BaseModel):
-    text: str = Field(..., min_length=1, max_length=500)
-
-class CommentCreate(CommentBase):
-    pass
-
-class Comment(CommentBase):
-    commentId: str
-    authorId: str
-    createdAt: datetime
-    
-    class Config:
-        from_attributes = True
+class GeoPoint(BaseModel):
+    latitude: float
+    longitude: float
 
 class PostBase(BaseModel):
-    text: str = Field(..., min_length=1, max_length=1000)
+    text: str
     type: PostType
     category: PostCategory
-    neighborhood: str = Field(..., min_length=1, max_length=100)
+    location: GeoPoint
+    neighborhood: str
     mediaUrl: Optional[str] = None
 
 class PostCreate(PostBase):
     pass
 
 class PostUpdate(BaseModel):
-    text: Optional[str] = Field(None, min_length=1, max_length=1000)
-    type: Optional[PostType] = None
-    category: Optional[PostCategory] = None
-    mediaUrl: Optional[str] = None
+    text: Optional[str] = None
+    status: Optional[PostStatus] = None
 
 class Post(PostBase):
     postId: str
     authorId: str
     upvotes: int = 0
     downvotes: int = 0
-    upvotedBy: List[str] = Field(default_factory=list)
-    downvotedBy: List[str] = Field(default_factory=list)
+    upvotedBy: List[str] = []
+    downvotedBy: List[str] = []
     commentCount: int = 0
     createdAt: datetime
     status: PostStatus = PostStatus.ACTIVE
     
     class Config:
-        from_attributes = True
+        from_attributes = True 
