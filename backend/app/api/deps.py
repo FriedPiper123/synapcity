@@ -35,10 +35,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     # configured. If Firestore is unavailable (e.g. missing service account in
     # local development) we will gracefully fall back to using the claims that
     # are present inside the ID token itself.
+    # If Firestore is available, fetch (or create) the user document.
     try:
-        user_doc = db.collection("users").document(uid).get()
-        if user_doc.exists:
-            user_data = user_doc.to_dict()
+        if db is not None:
+            user_ref = db.collection("users").document(uid)
+            snap = user_ref.get()
+            if snap.exists:
+                user_data = snap.to_dict()
+            else:
+                # Create a new user document based on token claims.
+                user_data = {
+                    "username": decoded_token.get("name", uid),
+                    "email": decoded_token.get("email", f"{uid}@placeholder.local"),
+                    "createdAt": datetime.utcnow(),
+                    "profileImageUrl": decoded_token.get("picture"),
+                    "subscribedAreas": [],
+                }
+                user_ref.set(user_data)
+            # Ensure uid is present for the Pydantic model.
             user_data["userId"] = uid
             return User(**user_data)
     except Exception:
