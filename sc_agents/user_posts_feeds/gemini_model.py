@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import types
 
-from post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt
+from post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt, summarizer_prompt
 
 
 class GeminiModel:
@@ -18,7 +18,8 @@ class GeminiModel:
         )
         self.task_prompt_creator = {
             "post_analysis": create_analysis_prompt, 
-            "similar_post_summarization": create_similar_posts_summarizer_prompt
+            "similar_post_summarization": create_similar_posts_summarizer_prompt, 
+            "summarizer": summarizer_prompt
         }
 
 

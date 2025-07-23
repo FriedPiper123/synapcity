@@ -60,7 +60,7 @@ class UserPost(FireStoreDB):
                 task = "similar_post_summarization", 
                 issue_tag = issue_tag, 
                 location = location,
-                sumaries = summaries_in_string
+                summaries = summaries_in_string
                 )
         return final_summary.text
 
