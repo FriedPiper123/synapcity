@@ -221,7 +221,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, height: '100%'}}>
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -237,13 +237,13 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
             <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
               Stay updated with what's happening in your area
             </Text>
-            {selectedLocation && (
+            {/* {selectedLocation && (
               <View style={[styles.locationContainer, { backgroundColor: theme.colors.primaryContainer }]}>
                 <Text style={{ color: theme.colors.onPrimaryContainer, fontSize: 12 }}>
                   📍 Showing posts from: {getLocationName()}
                 </Text>
               </View>
-            )}
+            )} */}
           </Card.Content>
         </Card>
         {loading ? (
@@ -257,11 +257,11 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
             onPress={() => handlePostPress(post.postId)}
           />
         ))}
-        <View style={{ alignItems: 'center', marginVertical: 16 }}>
+        {/* <View style={{ alignItems: 'center', marginVertical: 16 }}>
           <Button mode="outlined" style={{ borderColor: theme.colors.primary }}>
             Load More Posts
           </Button>
-        </View>
+        </View> */}
       </ScrollView>
       <FAB
         icon="plus"
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 1000,
     padding: 16,
-    paddingBottom: 100 // Add bottom padding
+    paddingBottom: 10 // Add bottom padding
   },
   headerCard: {
     marginBottom: 16,

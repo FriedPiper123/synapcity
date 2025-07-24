@@ -43,17 +43,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPress, showActions =
       >
         <Card.Content>
           <View style={styles.header}>
-            <Avatar.Icon size={40} icon={'account-tie'} style={{ backgroundColor: theme.colors.primary }} />
+            {/* Author avatar and name */}
+            {post.author && post.author.profileImageUrl ? (
+              <Avatar.Image size={40} source={{ uri: post.author.profileImageUrl }} style={{ backgroundColor: theme.colors.primary }} />
+            ) : (
+              <Avatar.Icon size={40} icon={'account-tie'} style={{ backgroundColor: theme.colors.primary }} />
+            )}
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text variant="titleMedium" style={{ fontWeight: 'bold', color: theme.colors.onSurface }}>
-                {post.authorId === 'anonymous' ? 'Anonymous' : post.authorId}
+                {post.author && post.author.username ? post.author.username : 'Anonymous'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                 <MaterialCommunityIcons name="clock-outline" size={14} color={theme.colors.onSurfaceVariant} />
                 <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>{new Date(post.createdAt).toLocaleString()}</Text>
                 <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>•</Text>
                 <MaterialCommunityIcons name="map-marker-outline" size={14} color={theme.colors.onSurfaceVariant} />
-                <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>{post.neighborhood}</Text>
+                <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1} ellipsizeMode="tail">{post.location_name || post.neighborhood || 'Unknown Location'}</Text>
               </View>
             </View>
             <View style={[styles.badge, { backgroundColor: badge.backgroundColor }]}> 

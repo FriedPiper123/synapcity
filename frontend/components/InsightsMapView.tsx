@@ -131,7 +131,7 @@ export const InsightsMapView = () => {
           title: post.content?.substring(0, 50) + (post.content?.length > 50 ? '...' : '') || 'Untitled',
           severity: post.category === 'accident' || post.category === 'emergency' ? 'high' : 
                    post.category === 'infrastructure' ? 'medium' : 'low',
-          location: post.neighborhood || 'Unknown Location',
+          location: post.location_name || post.neighborhood || 'Unknown Location',
           latitude: post.location?.latitude || 12.9716 + (Math.random() - 0.5) * 0.02,
           longitude: post.location?.longitude || 77.5946 + (Math.random() - 0.5) * 0.02,
           radius: Math.floor(Math.random() * (2000 - 500 + 1)) + 500,

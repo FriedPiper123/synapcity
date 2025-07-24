@@ -299,7 +299,7 @@ export default function CreatePost() {
             {selectedLocation && (
               <View style={[styles.locationContainer, { backgroundColor: theme.colors.primaryContainer }]}>
                 <Text style={{ color: theme.colors.onPrimaryContainer, fontSize: 12, marginBottom: 4 }}>
-                  📍 Posting from: {selectedLocation.locationName || `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`}
+                  Posting from: {selectedLocation.locationName || `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`}
                 </Text>
               </View>
             )}

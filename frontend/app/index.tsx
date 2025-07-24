@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from "react-native";
+
 // import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Line } from 'react-native-svg';
 
 export default function Page() {
