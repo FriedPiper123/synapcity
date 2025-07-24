@@ -76,7 +76,7 @@ export default function FeedScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background, height: '100%' }]}>
       <SocialFeed 
         latitude={selectedLocation.latitude} 
         longitude={selectedLocation.longitude} 
@@ -89,7 +89,7 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingBottom: 100, // Add bottom padding
+    paddingBottom: 0, // Add bottom padding
   },
   loadingCard: {
     margin: 16,

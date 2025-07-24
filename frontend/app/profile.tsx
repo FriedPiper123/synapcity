@@ -61,10 +61,10 @@ export default function ProfilePage() {
       setFirebaseUser(user);
       setIsAnonymous(user?.isAnonymous ?? true);
       setCheckingAuth(false);
-      // If user is logged in (not anonymous), redirect to dashboard
-      if (user && !user.isAnonymous) {
-        router.replace('/(tabs)');
-      }
+      // Remove auto-redirect to dashboard here
+      // if (user && !user.isAnonymous) {
+      //   router.replace('/(tabs)');
+      // }
     });
     // Sign in anonymously if not signed in
     if (!auth.currentUser) {

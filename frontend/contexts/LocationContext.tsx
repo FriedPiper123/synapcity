@@ -58,9 +58,13 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         accuracy: Location.Accuracy.Balanced,
       });
 
+      // Fetch location name from Google Maps API
+      const locationName = await fetchLocationName(location.coords.latitude, location.coords.longitude);
+
       const newLocation: LocationData = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
+        locationName: locationName,
       };
 
       setCurrentLocation(newLocation);
@@ -86,8 +90,13 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     }
   };
 
-  const setSelectedLocation = (location: LocationData) => {
-    setSelectedLocationState(location);
+  const setSelectedLocation = async (location: LocationData) => {
+    // Fetch location name if not present
+    let locationName = location.locationName;
+    if (!locationName) {
+      locationName = await fetchLocationName(location.latitude, location.longitude);
+    }
+    setSelectedLocationState({ ...location, locationName });
   };
 
   const clearSelectedLocation = () => {

@@ -3,12 +3,12 @@ import * as React from 'react';
 import { ScrollView, StyleSheet, View, Alert, RefreshControl } from 'react-native';
 import { Avatar, Card, FAB, List, Text, useTheme, ActivityIndicator, Button } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import * as Location from 'expo-location';
 import { AreaInsights } from './AreaInsights';
 import { apiFetch } from '../app/api';
 import { useLocation } from '../contexts/LocationContext';
 import { useRouter } from 'expo-router';
-import { Skeleton } from 'moti/skeleton';
+// import { MotiView } from 'moti';
+// import { Skeleton } from 'moti/skeleton';
 
 interface DashboardStats {
   activeIssues: number;
@@ -235,55 +235,54 @@ export const Dashboard = () => {
   };
 
 
-  if (loading) {
-    return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Skeleton for Stats */}
-        <Skeleton.Group show={true}>
-          <Card style={[styles.welcomeCard, { backgroundColor: theme.colors.primary }]}> 
-            <Card.Content style={styles.welcomeContent}>
-              <Skeleton width={180} height={28} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
-              <View style={{ marginTop: 12 }}>
-                <Skeleton width={220} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
-              </View>
-              <View style={styles.welcomeStats}>
-                <View style={{ marginTop: 16 }}>
-                  <Skeleton width={120} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
-                </View>
-                <View style={{ marginTop: 16 }}>
-                  <Skeleton width={120} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-          <View style={styles.statsRow}>
-            <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
-            <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
-          </View>
-          <View style={styles.statsRow}>
-            <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
-            <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
-          </View>
-        </Skeleton.Group>
-        {/* Skeleton for Activities */}
-        <Skeleton.Group show={true}>
-          <Card style={[styles.activityCard, { backgroundColor: theme.colors.surface }]}> 
-            <Card.Title 
-              title={<Skeleton width={120} height={20} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />}
-              subtitle={<Skeleton width={180} height={16} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />}
-            />
-            <Card.Content>
-              {[...Array(4)].map((_, i) => (
-                <View key={i} style={{ marginBottom: 16 }}>
-                  <Skeleton width={320} height={32} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
-                </View>
-              ))}
-            </Card.Content>
-          </Card>
-        </Skeleton.Group>
-      </ScrollView>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        
+  //       <Skeleton.Group show={true}>
+  //         <Card style={[styles.welcomeCard, { backgroundColor: theme.colors.primary }]}> 
+  //           <Card.Content style={styles.welcomeContent}>
+  //             <Skeleton width={180} height={28} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
+  //             <View style={{ marginTop: 12 }}>
+  //               <Skeleton width={220} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
+  //             </View>
+  //             <View style={styles.welcomeStats}>
+  //               <View style={{ marginTop: 16 }}>
+  //                 <Skeleton width={120} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
+  //               </View>
+  //               <View style={{ marginTop: 16 }}>
+  //                 <Skeleton width={120} height={18} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />
+  //               </View>
+  //             </View>
+  //           </Card.Content>
+  //         </Card>
+  //         <View style={styles.statsRow}>
+  //           <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
+  //           <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
+  //         </View>
+  //         <View style={styles.statsRow}>
+  //           <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
+  //           <Skeleton width={160} height={80} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
+  //         </View>
+  //       </Skeleton.Group>
+  //       <Skeleton.Group show={true}>
+  //         <Card style={[styles.activityCard, { backgroundColor: theme.colors.surface }]}> 
+  //           <Card.Title 
+  //             title={<Skeleton width={120} height={20} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />}
+  //             subtitle={<Skeleton width={180} height={16} radius={8} colorMode={theme.dark ? 'dark' : 'light'} />}
+  //           />
+  //           <Card.Content>
+  //             {[...Array(4)].map((_, i) => (
+  //               <View key={i} style={{ marginBottom: 16 }}>
+  //                 <Skeleton width={320} height={32} radius={12} colorMode={theme.dark ? 'dark' : 'light'} />
+  //               </View>
+  //             ))}
+  //           </Card.Content>
+  //         </Card>
+  //       </Skeleton.Group>
+  //     </ScrollView>
+  //   );
+  // }
 
   if (error && !stats) {
     return (

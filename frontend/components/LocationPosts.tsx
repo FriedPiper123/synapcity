@@ -30,6 +30,10 @@ interface Post {
   };
   location_name: string;
   neighborhood: string;
+  author?: {
+    username: string;
+    profileImageUrl?: string;
+  };
 }
 
 export const LocationPosts: React.FC<LocationPostsProps> = ({ 
@@ -82,7 +86,8 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
           status: "active",
           location: { latitude: latitude + 0.001, longitude: longitude + 0.001 },
           location_name: "Main Street",
-          neighborhood: "Current Location"
+          neighborhood: "Current Location",
+          author: { username: "John Doe", profileImageUrl: "https://via.placeholder.com/50" }
         },
         {
           postId: "dummy_post_2",
@@ -100,7 +105,8 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
           status: "active",
           location: { latitude: latitude - 0.001, longitude: longitude - 0.001 },
           location_name: "City Park",
-          neighborhood: "Current Location"
+          neighborhood: "Current Location",
+          author: { username: "Jane Smith", profileImageUrl: "https://via.placeholder.com/50" }
         },
         {
           postId: "dummy_post_3",
@@ -118,7 +124,8 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
           status: "active",
           location: { latitude: latitude + 0.002, longitude: longitude - 0.002 },
           location_name: "Oak Avenue",
-          neighborhood: "Current Location"
+          neighborhood: "Current Location",
+          author: { username: "Mike Johnson", profileImageUrl: "https://via.placeholder.com/50" }
         }
       ];
       setPosts(dummyPosts);
@@ -213,11 +220,10 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Header */}
       <Card style={[styles.headerCard, { backgroundColor: theme.colors.primary }]}>
         <Card.Content>
           <Text variant="titleLarge" style={{ color: 'white', fontWeight: 'bold', marginBottom: 4 }}>
-            📍 Posts Near You
+            Posts Near You
           </Text>
           <Text style={{ color: '#dbeafe', fontSize: 14 }}>
             {posts.length} posts within {radiusKm}km radius
@@ -267,8 +273,8 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
                     </Chip>
                   )}
                 </View>
-                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
-                  {formatDistance(latitude, longitude, post.location.latitude, post.location.longitude)}
+                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }} numberOfLines={1} ellipsizeMode="tail">
+                  {post.location_name || post.neighborhood || 'Unknown Location'}
                 </Text>
               </View>
 
@@ -307,7 +313,7 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
                 </View>
                 <View style={styles.postMeta}>
                   <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
-                    by {post.authorName}
+                    by {post.author && post.author.username ? post.author.username : 'Anonymous'}
                   </Text>
                   <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
                     {new Date(post.createdAt).toLocaleDateString()}

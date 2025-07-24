@@ -6,7 +6,7 @@ import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { createContext, useEffect, useState } from 'react';
 import { MD3DarkTheme, MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
-import 'react-native-reanimated';
+// import 'react-native-reanimated';
 import AppHeader from '../components/AppHeader';
 import { LocationProvider } from '../contexts/LocationContext';
 

@@ -21,27 +21,27 @@ export default function RecentActivityDetail() {
 
   // Helper for external reference card
   const renderExternalReference = (item: any, idx: number) => (
-    <Card key={idx} style={[styles.externalRefCard, { backgroundColor: theme.colors.surface }]}
+    <Card key={idx} style={[styles.externalRefCard, { backgroundColor: theme.colors.surface, width: '100%' }]}
       onPress={() => item.link && router.push(item.link)}>
-      <Card.Content style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Card.Content style={{ flexDirection: 'row', alignItems: 'space-around', justifyContent: 'space-between', width: '100%' }}>
         {item.thumbnail ? (
           <Avatar.Image size={36} source={{ uri: item.thumbnail }} style={{ backgroundColor: theme.colors.primaryContainer, marginRight: 12 }} />
         ) : (
           <Avatar.Icon size={36} icon="link" style={{ backgroundColor: theme.colors.primaryContainer, marginRight: 12 }} color={theme.colors.primary} />
         )}
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0, maxWidth: '80%', alignItems: 'center', width: '100%' }}>
           <Text
             numberOfLines={2}
             ellipsizeMode="tail"
-            style={{ color: theme.colors.onSurface, fontWeight: 'bold', fontSize: 15 }}
+            style={{
+              color: theme.colors.primary,
+              fontWeight: 'normal',
+              fontSize: 15,
+              textDecorationLine: 'underline',
+            }}
           >
             {item.title}
           </Text>
-          {item.description && (
-            <Text numberOfLines={2} ellipsizeMode="tail" style={{ color: theme.colors.onSurfaceVariant, fontSize: 13 }}>
-              {item.description}
-            </Text>
-          )}
         </View>
       </Card.Content>
     </Card>
@@ -81,19 +81,16 @@ export default function RecentActivityDetail() {
         >
           <Card.Content>
             <View style={styles.postHeader}>
-              <Avatar.Icon size={40} icon={'account-tie'} style={{ backgroundColor: theme.colors.primary }} />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text variant="titleMedium" style={{ fontWeight: 'bold', color: theme.colors.onSurface }}>
-                  {post.authorId === 'anonymous' ? 'Anonymous' : post.authorId}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  <MaterialCommunityIcons name="clock-outline" size={14} color={theme.colors.onSurfaceVariant} />
-                  <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>{new Date(post.createdAt).toLocaleString()}</Text>
-                  <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>•</Text>
-                  <MaterialCommunityIcons name="map-marker-outline" size={14} color={theme.colors.onSurfaceVariant} />
-                  <Text style={[styles.metaText, { color: theme.colors.onSurfaceVariant }]}>{post.neighborhood}</Text>
+                {post.author && post.author.profileImageUrl ? (
+                  <Avatar.Image size={40} source={{ uri: post.author.profileImageUrl }} style={{ backgroundColor: theme.colors.primary }} />
+                ) : (
+                  <Avatar.Icon size={40} icon={'account-tie'} style={{ backgroundColor: theme.colors.primary }} />
+                )}
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text variant="titleMedium" style={{ fontWeight: 'bold', color: theme.colors.onSurface }}>
+                    {post.author && post.author.username ? post.author.username : 'Anonymous'}
+                  </Text>
                 </View>
-              </View>
               <View style={[styles.badge, { backgroundColor: badge.backgroundColor }]}> 
                 <Text style={{ color: badge.color, fontWeight: 'bold', fontSize: 12 }}>{post.type}</Text>
               </View>

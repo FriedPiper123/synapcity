@@ -238,11 +238,15 @@ export default function PostScreen() {
         <Card style={[styles.postCard, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <View style={styles.postHeader}>
-              <Avatar.Text size={48} label={getAvatar(post.authorId)} style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]} />
+              {post.author && post.author.profileImageUrl ? (
+                <Avatar.Image size={48} source={{ uri: post.author.profileImageUrl }} style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]} />
+              ) : (
+                <Avatar.Text size={48} label={getAvatar(post.authorId)} style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]} />
+              )}
               <View style={styles.postInfo}>
                 <View style={styles.authorRow}>
-                  <Text style={[styles.authorName, { color: theme.colors.onSurface }]}>
-                    {post.authorId === 'anonymous' ? 'Anonymous' : post.authorId}
+                  <Text style={[styles.authorName, { color: theme.colors.onSurface }]}> 
+                    {post.author && post.author.username ? post.author.username : 'Anonymous'}
                   </Text>
                   {getBadges(post.authorId).map((b, i) => (
                     <Text key={i} style={styles.badge}>{b}</Text>
@@ -271,11 +275,15 @@ export default function PostScreen() {
                 <Pressable onPress={() => router.push({ pathname: '/post', params: { postId: parentPost.postId } })}>
                   <View style={[styles.parentPostInlineContent, { backgroundColor: theme.colors.surfaceVariant, borderLeftWidth: 3, borderLeftColor: theme.colors.primary }]}>
                     <View style={styles.parentPostHeader}>
-                      <Avatar.Text size={36} label={getAvatar(parentPost.authorId)} style={[styles.parentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                      {parentPost.author && parentPost.author.profileImageUrl ? (
+                        <Avatar.Image size={36} source={{ uri: parentPost.author.profileImageUrl }} style={[styles.parentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                      ) : (
+                        <Avatar.Text size={36} label={getAvatar(parentPost.authorId)} style={[styles.parentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                      )}
                       <View style={styles.parentPostInfo}>
                         <View style={styles.parentAuthorRow}>
                           <Text style={[styles.parentAuthorName, { color: theme.colors.onSurface }]}>
-                            {parentPost.authorId === 'anonymous' ? 'Anonymous' : parentPost.authorId}
+                            {parentPost.author && parentPost.author.username ? parentPost.author.username : 'Anonymous'}
                           </Text>
                           {getBadges(parentPost.authorId).map((b, i) => (
                             <Text key={i} style={styles.parentBadge}>{b}</Text>
@@ -373,11 +381,15 @@ export default function PostScreen() {
                   <Card style={[styles.commentCard, { backgroundColor: theme.colors.surface }]}>
                     <Card.Content>
                       <View style={styles.commentHeader}>
-                        <Avatar.Text size={32} label={getAvatar(comment.authorId)} style={[styles.commentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                        {comment.author && comment.author.profileImageUrl ? (
+                          <Avatar.Image size={32} source={{ uri: comment.author.profileImageUrl }} style={[styles.commentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                        ) : (
+                          <Avatar.Text size={32} label={getAvatar(comment.authorId)} style={[styles.commentAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                        )}
                         <View style={styles.commentInfo}>
                           <View style={styles.commentAuthorRow}>
                             <Text style={[styles.commentAuthorName, { color: theme.colors.onSurface }]}>
-                              {comment.authorId === 'anonymous' ? 'Anonymous' : comment.authorId}
+                              {comment.author && comment.author.username ? comment.author.username : 'Anonymous'}
                             </Text>
                             {getBadges(comment.authorId).map((b, i) => (
                               <Text key={i} style={styles.commentBadge}>{b}</Text>
@@ -441,11 +453,15 @@ export default function PostScreen() {
                             <Card key={reply.postId || ridx} style={[styles.replyCard, { backgroundColor: theme.colors.surfaceVariant }]}>
                               <Card.Content>
                                 <View style={styles.replyHeader}>
-                                  <Avatar.Text size={24} label={getAvatar(reply.authorId)} style={[styles.replyAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                                  {reply.author && reply.author.profileImageUrl ? (
+                                    <Avatar.Image size={24} source={{ uri: reply.author.profileImageUrl }} style={[styles.replyAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                                  ) : (
+                                    <Avatar.Text size={24} label={getAvatar(reply.authorId)} style={[styles.replyAvatar, { backgroundColor: theme.colors.primaryContainer }]} />
+                                  )}
                                   <View style={styles.replyInfo}>
                                     <View style={styles.replyAuthorRow}>
                                       <Text style={[styles.replyAuthorName, { color: theme.colors.onSurface }]}>
-                                        {reply.authorId === 'anonymous' ? 'Anonymous' : reply.authorId}
+                                        {reply.author && reply.author.username ? reply.author.username : 'Anonymous'}
                                       </Text>
                                       {getBadges(reply.authorId).map((b, i) => (
                                         <Text key={i} style={styles.replyBadge}>{b}</Text>
