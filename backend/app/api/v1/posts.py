@@ -19,6 +19,18 @@ from ...utils.geohash_utils import (
 
 router = APIRouter()
 
+def get_author_details(user_id):
+    user_ref = db.collection('users').document(user_id)
+    user_doc = user_ref.get()
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        return {
+            'userId': user_id,
+            'username': user_data.get('username', 'Unknown'),
+            'profileImageUrl': user_data.get('profileImageUrl'),
+        }
+    return {'userId': user_id, 'username': 'Unknown', 'profileImageUrl': None}
+
 @router.post("/", response_model=Post)
 async def create_post(
     post: PostCreate,
@@ -58,7 +70,7 @@ async def create_post(
         }
         print(post_data["content"])
         gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = post_data["content"])
-        if gemini_output['sentiment'] == "vulgar":
+        if gemini_output['sentiment'].lower() == "vulgar":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -76,6 +88,8 @@ async def create_post(
             'latitude': post.location.latitude,
             'longitude': post.location.longitude
         }
+        # Add author details
+        post_data['author'] = get_author_details(current_user.userId)
         
         return Post(**post_data)
     except Exception as e:
@@ -149,6 +163,8 @@ async def get_posts_by_location(
                             'latitude': post_data['location'].latitude,
                             'longitude': post_data['location'].longitude
                         }
+                        # Add author details
+                        post_data['author'] = get_author_details(post_data.get('authorId'))
                         
                         posts.append(Post(**post_data))
                         
@@ -194,6 +210,8 @@ async def get_post_by_id(post_id: str):
                 'latitude': post_data['location'].latitude,
                 'longitude': post_data['location'].longitude
             }
+        # Add author details
+        post_data['author'] = get_author_details(post_data.get('authorId'))
         
         return Post(**post_data)
     except Exception as e:

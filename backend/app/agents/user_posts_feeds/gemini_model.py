@@ -11,6 +11,7 @@ import json
 
 def set_gemini_output_injson(output):
   json_text = re.search(r'\{.*\}', output, re.DOTALL)
+  print(json_text.group())
   output_json = json.loads(json_text.group())
   return output_json
   
