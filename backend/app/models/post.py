@@ -56,6 +56,7 @@ class PostUpdate(BaseModel):
 class Post(PostBase):
     postId: str
     authorId: Optional[str] = None
+    author: Optional[dict] = None  # New: author details (username, profileImageUrl)
     upvotes: int = 0
     downvotes: int = 0
     upvotedBy: List[str] = []
