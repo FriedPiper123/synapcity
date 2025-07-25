@@ -7,6 +7,7 @@ from .comments import router as comments_router
 from .insights import router as insights_router
 from .location_posts import router as location_posts_router
 from .dashboard import router as dashboard_router
+from .routes import router as routes_router
 
 api_router = APIRouter()
 
@@ -17,4 +18,5 @@ api_router.include_router(comments_router, prefix="/posts", tags=["comments"])
 # api_router.include_router(areas_router, prefix="/areas", tags=["areas"])
 api_router.include_router(insights_router, prefix="/insights", tags=["insights"])
 api_router.include_router(location_posts_router, prefix="/location", tags=["location"])
-api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"]) 
+api_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(routes_router, prefix="/routes", tags=["routes"])
