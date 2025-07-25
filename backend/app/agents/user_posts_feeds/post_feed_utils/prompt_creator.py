@@ -270,3 +270,42 @@ IMPORTANT:
 """
 
     return prompt
+
+def create_route_prompt(kwargs) -> str:
+    """
+    Creates a prompt for the AI agent to fetch the best route between two locations.
+    Args:
+        origin: dict with 'latitude' and 'longitude'
+        destination: dict with 'latitude' and 'longitude'
+        mode: str, travel mode (driving, walking, bicycling, transit)
+    Returns:
+        Formatted prompt string for route fetching
+    """
+    origin = kwargs.get('origin', {})
+    destination = kwargs.get('destination', {})
+    mode = kwargs.get('mode', 'driving')
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "route": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "step": {"type": "string"},
+                        "distance": {"type": "string"},
+                        "duration": {"type": "string"},
+                        "instruction": {"type": "string"}
+                    },
+                    "required": ["step", "distance", "duration", "instruction"]
+                }
+            },
+            "total_distance": {"type": "string"},
+            "total_duration": {"type": "string"},
+            "mode": {"type": "string"}
+        },
+        "required": ["route", "total_distance", "total_duration", "mode"]
+    }
+    schema_json = json.dumps(output_schema, indent=2)
+    prompt = f"""You are an advanced AI navigation assistant. Given the following origin and destination coordinates, use Google Maps or a similar tool to find the best route for the specified travel mode. Return the route as a list of steps, each with a step number, distance, duration, and instruction. Also include the total distance and duration for the route.\n\nORIGIN: {origin}\nDESTINATION: {destination}\nMODE: {mode}\n\nOUTPUT SCHEMA:\n```json\n{schema_json}\n```\n\nReturn ONLY a valid JSON object matching the schema above. No additional text or explanation."""
+    return prompt

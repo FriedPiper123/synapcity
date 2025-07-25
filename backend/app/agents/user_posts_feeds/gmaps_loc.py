@@ -18,3 +18,9 @@ class GoogleMapsManager:
               country = component['long_name']
 
       return country, state, district
+
+  def get_route(self, origin_lat, origin_lng, dest_lat, dest_lng, mode="driving"):
+      origin = (origin_lat, origin_lng)
+      destination = (dest_lat, dest_lng)
+      directions_result = self.gmaps.directions(origin, destination, mode=mode)
+      return directions_result

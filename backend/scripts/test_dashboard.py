@@ -45,5 +45,21 @@ def test_dashboard_functions():
         import traceback
         traceback.print_exc()
 
+def test_route_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    payload = {
+        "origin": {"latitude": 12.9716, "longitude": 77.5946},
+        "destination": {"latitude": 13.0827, "longitude": 80.2707},
+        "mode": "driving"
+    }
+    response = client.post("/api/v1/location/route", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "route" in data or "directions" in data or "total_distance" in data  # Accepts both AI and fallback keys
+    print("Route API response:", data)
+
 if __name__ == "__main__":
     test_dashboard_functions() 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query, Body
 from typing import List, Optional
 from datetime import datetime, timezone
 import math
@@ -6,7 +6,9 @@ import random
 from firebase_admin import firestore
 
 from ...core.firebase import db
-from ...models.post import Post
+from ...models.post import Post, GeoPoint
+from pydantic import BaseModel
+from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
 router = APIRouter()
 
@@ -125,6 +127,11 @@ def generate_dummy_posts(latitude: float, longitude: float, radius_km: float = 5
     
     return posts
 
+class RouteRequest(BaseModel):
+    origin: GeoPoint
+    destination: GeoPoint
+    mode: str = "driving"
+
 @router.get("/location-posts", response_model=List[Post])
 async def get_posts_by_location(
     latitude: float = Query(..., description="Latitude of the user's location"),
@@ -170,3 +177,21 @@ async def get_posts_by_location(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching location-based posts: {str(e)}"
         ) 
+
+@router.post("/route")
+async def get_route_between_locations(
+    route_req: RouteRequest = Body(..., description="Route request with origin, destination, and mode")
+):
+    """
+    Get the route (directions) between two locations using the AI agent (Gemini).
+    """
+    try:
+        ai_output = GeminiAgent(
+            task="route",
+            origin={"latitude": route_req.origin.latitude, "longitude": route_req.origin.longitude},
+            destination={"latitude": route_req.destination.latitude, "longitude": route_req.destination.longitude},
+            mode=route_req.mode
+        )
+        return ai_output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching route via AI agent: {str(e)}") 

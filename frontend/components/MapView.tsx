@@ -1,11 +1,20 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as React from 'react';
 import { useContext, useState } from 'react';
-import { Animated, Dimensions, PanResponder, ScrollView as RNScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, PanResponder, ScrollView as RNScrollView, StyleSheet, View, Platform, Text as RNText } from 'react-native';
 import MapViewRN, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Button, Card, Portal, FAB, Chip, Text, TextInput, useTheme } from 'react-native-paper';
 import { DatePickerModal, TimePickerModal } from 'react-native-paper-dates';
 import { UserThemeContext } from '../app/_layout';
+
+let MapViewRN, Marker, Circle, PROVIDER_GOOGLE;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapViewRN = maps.default;
+  Marker = maps.Marker;
+  Circle = maps.Circle;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+}
 
 type Severity = 'high' | 'medium' | 'low';
 type MapDataItem = {
@@ -51,6 +60,14 @@ const severityColors: Record<string, { bg: string; text: string }> = {
 };
 
 export const MapView = () => {
+  if (Platform.OS === 'web') {
+    return (
+      <RNView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+        <RNText>Map is not supported on web. Please use the mobile app.</RNText>
+      </RNView>
+    );
+  }
+
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'issue' | 'event' | 'resolved'>('all');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [customDestination, setCustomDestination] = useState('');
