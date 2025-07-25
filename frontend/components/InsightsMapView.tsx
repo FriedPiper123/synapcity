@@ -137,7 +137,7 @@ export const InsightsMapView = () => {
     try {
       setLoading(true);
       const response = await apiFetch(
-        `http://192.168.1.5:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+        `http://192.168.1.24:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
       
       if (response.ok) {

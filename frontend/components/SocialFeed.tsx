@@ -69,10 +69,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
 
       if (currentLocation) {
         // Use location-based posts API
-        res = await apiFetch(`http://192.168.1.5:8000/api/v1/posts/nearby?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=${radiusKm}`);
+        res = await apiFetch(`http://192.168.1.24:8000/api/v1/posts/nearby?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=${radiusKm}`);
       } else {
         // Fallback to neighborhood posts if location is not available
-        res = await apiFetch('http://192.168.1.5:8000/api/v1/posts/Downtown');
+        res = await apiFetch('http://192.168.1.24:8000/api/v1/posts/Downtown');
       }
       
       const data = await res.json();
@@ -82,7 +82,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
       const commentsObj: Record<string, any[]> = {};
       await Promise.all(
         data.map(async (post: any) => {
-          const res = await apiFetch(`http://192.168.1.5:8000/api/v1/posts/${post.postId}/comments?limit=10`);
+          const res = await apiFetch(`http://192.168.1.24:8000/api/v1/posts/${post.postId}/comments?limit=10`);
           if (res.ok) {
             const comments = await res.json();
             commentsObj[post.postId] = comments;
@@ -136,7 +136,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
           ? prev.filter(id => id !== postId)
           : [...prev, postId]
       );
-      const res = await apiFetch(`http://192.168.1.5:8000/api/v1/posts/${postId}/upvote`, {
+      const res = await apiFetch(`http://192.168.1.24:8000/api/v1/posts/${postId}/upvote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -156,7 +156,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
   const handleCommentSubmit = async () => {
     if (!commentingPostId || !commentText.trim()) return;
     try {
-      const res = await apiFetch(`http://192.168.1.5:8000/api/v1/posts/${commentingPostId}/comments`, {
+      const res = await apiFetch(`http://192.168.1.24:8000/api/v1/posts/${commentingPostId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: commentText }),
