@@ -203,7 +203,6 @@ def summarizer_prompt(kwargs):
         "external_references": [ {'link' : 'relevant_link_1', 'title' : 'title of the link', 'thumbnail' : 'thumbnail of the link' }, {'link' : 'relevant_link_2', 'title' : 'title of the link', 'thumbnail' : 'thumbnail of the link' } ],
         "severity": "low | medium | high | no_severity",
         "confidence": "low | medium | high",
-        "related_feeds" : [ 'postId1', 'postId2']
     }
     
     # Build location instruction
@@ -224,7 +223,12 @@ INPUT SUMMARIES:
 ANALYSIS REQUIREMENTS:
 1. **Content Analysis**: Read all summaries and identify common themes, patterns, and concerns
 2. **Categorization**: Confirm or refine the category based on actual content
-3. **Research**: Conduct a web search to find 2-3 relevant articles or resources related to this type of issue/event
+3. **Research**: Conduct a web search to find 2-3 relevant articles or resources related to this issue/event.
+   - All links must be direct (not redirects), publicly accessible, and return HTTP 200 OK and it should be the actual real links
+     and not 'vertexaisearch.cloud.google.com'
+   - Do not include placeholder, broken, redirect-only, or inaccessible links.
+   - Prefer trusted sources (e.g. news outlets, official sites).
+
 4. **Severity Assessment**: Rate the overall severity based on:
    - Number of reports
    - Potential impact on community

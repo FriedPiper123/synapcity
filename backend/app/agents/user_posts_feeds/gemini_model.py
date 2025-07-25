@@ -1,13 +1,10 @@
-import json
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-import os
-from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt
-from .constants import GEMINI_API_KEY
 import re
 import json
+from google import genai
+from google.genai import types
 
+from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt
+from .constants import GEMINI_API_KEY
 
 def set_gemini_output_injson(output):
   json_text = re.search(r'\{.*\}', output, re.DOTALL)
