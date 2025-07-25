@@ -47,54 +47,37 @@ class RouteRequest(BaseModel):
             raise ValueError('Departure time must be positive')
         return v
 
-class IncidentDetail(BaseModel):
-    type: IncidentType
-    severity: str
-    description: str
-    estimated_delay: int = 0
-    source: str
-    reliability: float = Field(ge=0.0, le=1.0)
-
-class TrafficAnalysis(BaseModel):
-    speed_reduction_percent: int = Field(ge=0, le=100)
-    delay_minutes: int = Field(ge=0)
-    congestion_level: str
-    flow_confidence: float = Field(ge=0.0, le=1.0)
-
-class WeatherImpact(BaseModel):
-    impact_level: str
-    conditions: str
-    visibility_km: int = Field(ge=0)
-    affecting_traffic: bool
+class RouteInsight(BaseModel):
+    route_id: int
+    insights: Any
+    last_updated: Optional[str]
 
 class RouteGroupSummary(BaseModel):
     group_id: str
-    overall_status: RouteStatus
-    recommendation: Recommendation
+    overall_status: str
+    recommendation: str
     total_delay: int = Field(ge=0)
     key_factors: List[str] = []
     alternative: str = ""
     summary: str
     confidence_score: float = Field(ge=0.0, le=1.0, default=0.0)
     
-    # Categorized incidents
-    accidents: List[IncidentDetail] = []
-    construction: List[IncidentDetail] = []
-    closures: List[IncidentDetail] = []
-    patterns: List[IncidentDetail] = []
-    crowding: List[IncidentDetail] = []
-    
-    # Additional data
-    weather: Optional[WeatherImpact] = None
-    traffic: Optional[TrafficAnalysis] = None
+    # Explicit delay causes
+    accident: List[dict] = []
+    construction: List[dict] = []
+    closure: List[dict] = []
+    weather: dict = {}
+    crowding: List[dict] = []
+    pattern: List[dict] = []
+    traffic: dict = {}
     last_updated: Optional[str] = None
 
 class RouteSummary(BaseModel):
     route_id: int
     total_estimated_delay: int = Field(ge=0)
     groups: List[RouteGroupSummary]
-    overall_status: RouteStatus
-    recommendation: Recommendation
+    overall_status: str
+    recommendation: str
     summary: str
     confidence_score: float = Field(ge=0.0, le=1.0, default=0.0)
 
@@ -105,32 +88,31 @@ class RoutesSummaryResponse(BaseModel):
     best_route_id: Optional[int] = None
     response_time_ms: int
 
-def categorize_incidents(incidents: List[Dict]) -> Dict[str, List[IncidentDetail]]:
-    """Categorize incidents by type with proper validation."""
+def categorize_incidents(incidents: List[Dict]) -> Dict[str, List]:
+    """Categorize incidents by type with error handling."""
     categorized = {
-        "accidents": [],
+        "accident": [],
         "construction": [],
-        "closures": [],
-        "patterns": [],
-        "crowding": []
+        "closure": [],
+        "weather": {},
+        "crowding": [],
+        "pattern": [],
+        "traffic": {}
     }
     
     for incident in incidents:
         try:
-            incident_detail = IncidentDetail(**incident)
-            incident_type = incident_detail.type.value
-            
+            incident_type = incident.get("type", "")
             if incident_type == "accident":
-                categorized["accidents"].append(incident_detail)
+                categorized["accident"].append(incident)
             elif incident_type == "construction":
-                categorized["construction"].append(incident_detail)
+                categorized["construction"].append(incident)
             elif incident_type == "closure":
-                categorized["closures"].append(incident_detail)
+                categorized["closure"].append(incident)
             elif incident_type == "pattern":
-                categorized["patterns"].append(incident_detail)
+                categorized["pattern"].append(incident)
             elif incident_type == "crowding":
-                categorized["crowding"].append(incident_detail)
-                
+                categorized["crowding"].append(incident)
         except Exception as e:
             logger.warning(f"Failed to categorize incident: {incident}. Error: {e}")
             continue
@@ -138,29 +120,20 @@ def categorize_incidents(incidents: List[Dict]) -> Dict[str, List[IncidentDetail
     return categorized
 
 def determine_best_route(routes: List[RouteSummary]) -> Optional[int]:
-    """Determine the best route based on delay, status, and confidence."""
+    """Determine the best route based on delay and status."""
     if not routes:
         return None
     
     best_route = min(routes, key=lambda r: (
-        r.overall_status == RouteStatus.BLOCKED,  # Avoid blocked routes
+        r.overall_status == "blocked",  # Avoid blocked routes
         r.total_estimated_delay,  # Prefer shorter delays
-        -r.confidence_score  # Prefer higher confidence (negative for ascending order)
+        -r.confidence_score  # Prefer higher confidence
     ))
     
     return best_route.route_id
 
-def generate_route_summary(route_id: int, total_delay: int, status: RouteStatus, recommendation: Recommendation) -> str:
+def generate_route_summary(route_id: int, total_delay: int, status: str, recommendation: str) -> str:
     """Generate a human-readable route summary."""
-    severity_map = {
-        RouteStatus.BLOCKED: "severely impacted",
-        RouteStatus.HEAVY: "heavily congested", 
-        RouteStatus.MODERATE: "moderately congested",
-        RouteStatus.CLEAR: "clear"
-    }
-    
-    severity = severity_map.get(status, "unknown condition")
-    
     if total_delay == 0:
         delay_text = "no expected delays"
     elif total_delay <= 15:
@@ -170,7 +143,16 @@ def generate_route_summary(route_id: int, total_delay: int, status: RouteStatus,
     else:
         delay_text = f"significant delays (~{total_delay} min)"
     
-    return f"Route {route_id} is {severity} with {delay_text}. Recommendation: {recommendation.value.capitalize()}."
+    severity_map = {
+        "blocked": "severely impacted",
+        "heavy": "heavily congested", 
+        "moderate": "moderately congested",
+        "clear": "clear"
+    }
+    
+    severity = severity_map.get(status, "unknown condition")
+    
+    return f"Route {route_id} is {severity} with {delay_text}. Recommendation: {recommendation.capitalize()}."
 
 async def fetch_route_data_with_retry(request_body: dict) -> dict:
     """Fetch route data with retry logic and proper error handling."""
@@ -248,7 +230,7 @@ async def get_best_route(data: RouteRequest):
         request_body["departure time"] = data.departure_time
     
     try:
-        # Fetch route data
+        # Fetch route data with retry logic
         routes_data = await fetch_route_data_with_retry(request_body)
         
         # Process routes
@@ -270,8 +252,8 @@ async def get_best_route(data: RouteRequest):
                 try:
                     # Extract basic group info
                     group_id = group_data.get("group_id", "")
-                    overall_status = RouteStatus(group_data.get("overall_status", "moderate"))
-                    recommendation = Recommendation(group_data.get("recommendation", "caution"))
+                    overall_status = group_data.get("overall_status", "moderate")
+                    recommendation = group_data.get("recommendation", "caution")
                     delay = group_data.get("estimated_total_delay", 0)
                     confidence_score = group_data.get("confidence_score", 0.0)
                     
@@ -283,20 +265,6 @@ async def get_best_route(data: RouteRequest):
                     traffic_data = group_data.get("traffic_analysis", {})
                     weather_data = group_data.get("weather_impact", {})
                     
-                    traffic_analysis = None
-                    if traffic_data:
-                        try:
-                            traffic_analysis = TrafficAnalysis(**traffic_data)
-                        except Exception as e:
-                            logger.warning(f"Failed to parse traffic analysis: {e}")
-                    
-                    weather_impact = None
-                    if weather_data:
-                        try:
-                            weather_impact = WeatherImpact(**weather_data)
-                        except Exception as e:
-                            logger.warning(f"Failed to parse weather impact: {e}")
-                    
                     # Create group summary
                     group_summary = RouteGroupSummary(
                         group_id=group_id,
@@ -307,13 +275,13 @@ async def get_best_route(data: RouteRequest):
                         alternative=group_data.get("alternative_suggestion", ""),
                         summary=group_data.get("summary", ""),
                         confidence_score=confidence_score,
-                        accidents=categorized["accidents"],
+                        accident=categorized["accident"],
                         construction=categorized["construction"],
-                        closures=categorized["closures"],
-                        patterns=categorized["patterns"],
+                        closure=categorized["closure"],
+                        weather=weather_data,
                         crowding=categorized["crowding"],
-                        weather=weather_impact,
-                        traffic=traffic_analysis,
+                        pattern=categorized["pattern"],
+                        traffic=traffic_data,
                         last_updated=group_data.get("last_updated")
                     )
                     
@@ -330,18 +298,18 @@ async def get_best_route(data: RouteRequest):
                 continue
             
             # Determine route-level status and recommendation
-            route_status = RouteStatus.CLEAR
-            route_recommendation = Recommendation.PROCEED
+            route_status = "clear"
+            route_recommendation = "proceed"
             
-            if any(g.overall_status == RouteStatus.BLOCKED for g in groups):
-                route_status = RouteStatus.BLOCKED
-                route_recommendation = Recommendation.AVOID
-            elif any(g.overall_status == RouteStatus.HEAVY for g in groups):
-                route_status = RouteStatus.HEAVY
-                route_recommendation = Recommendation.CAUTION
-            elif any(g.overall_status == RouteStatus.MODERATE for g in groups):
-                route_status = RouteStatus.MODERATE
-                route_recommendation = Recommendation.CAUTION
+            if any(g.overall_status == "blocked" for g in groups):
+                route_status = "blocked"
+                route_recommendation = "avoid"
+            elif any(g.overall_status == "heavy" for g in groups):
+                route_status = "heavy"
+                route_recommendation = "caution"
+            elif any(g.overall_status == "moderate" for g in groups):
+                route_status = "moderate"
+                route_recommendation = "caution"
             
             # Calculate average confidence
             avg_confidence = sum(route_confidence_scores) / len(route_confidence_scores) if route_confidence_scores else 0.0
@@ -370,7 +338,7 @@ async def get_best_route(data: RouteRequest):
         
         # Generate overall summary
         total_routes = len(route_summaries)
-        blocked_routes = sum(1 for r in route_summaries if r.overall_status == RouteStatus.BLOCKED)
+        blocked_routes = sum(1 for r in route_summaries if r.overall_status == "blocked")
         
         if blocked_routes == total_routes:
             status_desc = "All routes are currently blocked or heavily impacted"
