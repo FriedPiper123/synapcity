@@ -13,6 +13,7 @@ if __name__ == "__main__":
 
     gmo = GeminiModel(GEMINI_API_KEY)
     a = get_all_posts_summary(gmo, all_post, 
-                              post_summaries_batch_for_feeds = 5, 
-                              topk_links = 3)
+                              post_summaries_batch_for_feeds = 20, 
+                              topk_links = 3, 
+                              hours_back=24)
     pprint(a)

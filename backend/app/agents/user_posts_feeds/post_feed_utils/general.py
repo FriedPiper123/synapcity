@@ -1,40 +1,31 @@
-import re
-import json
+import requests
 
+def is_valid_url(url, timeout=10):
+    """
+    Checks if a URL is reachable and returns HTTP 200 OK.
 
-def restructure_report(data):
-    return {
-        "location": {
-            "current_user_location": {
-                "description": None,
-                "latitude": None, 
-                "longitude": None
-                },
-            "issue_location": {
-                "description": data.get("location"),
-                "latitude": None, 
-                "longitude": None
-            }
-        },
-        "analysis": {
-            "vulgarity": {
-            "sentiment": data.get("sentiment"),
-            "confidence_score": data.get("confidence"),
-            "strength": data.get("strength"),
-            },
-            "issue_tag": data.get("issue"),
-            "summary": data.get("summary"),
-            "reasoning": data.get("reasoning"),
-        },
-    }
+    Args:
+        url (str): The URL to check.
+        timeout (int): Request timeout in seconds.
+
+    Returns:
+        bool: True if the URL is reachable and valid, False otherwise.
+    """
+    try:
+        response = requests.get(url, timeout=timeout, allow_redirects=True)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
     
-def convert_str_to_json(string_ele):
-  return json.loads(string_ele)
 
-def set_gemini_output_injson(output):
-#   json_text = re.search(r'\{.*\}', output, re.DOTALL)
+if __name__ == "__main__":
+    urls = [
+        "https://www.bbc.com",
+        "https://invalid.example.com",
+        "https://httpstat.us/404", 
+        "https://www.dailypioneer.com/uploads/2025/epaper/july/delhi-english-edition-2025-07-25.pdf", 
+        "https://www.vialytics.com/blog/dangersofpotholes"
+    ]
 
-#   output_json = convert_str_to_json(output.group())
-  output_json = convert_str_to_json(output)
-
-  return restructure_report(output_json)
+    for url in urls:
+        print(f"{url} => {'Valid' if is_valid_url(url) else 'Invalid'}")
