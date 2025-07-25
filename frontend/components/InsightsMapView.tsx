@@ -2,7 +2,17 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as React from 'react';
 import { useContext, useState, useEffect } from 'react';
 import { Animated, Dimensions, PanResponder, ScrollView as RNScrollView, StyleSheet, View, Modal, Alert, LayoutAnimation, Platform, UIManager, Pressable, findNodeHandle, RefreshControl } from 'react-native';
-import MapViewRN, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Platform, View as RNView, Text as RNText } from 'react-native';
+
+let MapViewRN, Marker, Circle, PROVIDER_GOOGLE;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapViewRN = maps.default;
+  Marker = maps.Marker;
+  Circle = maps.Circle;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+}
+
 import { Chip, Text, TextInput, useTheme, Button, Card, ActivityIndicator, FAB, Portal } from 'react-native-paper';
 import { UserThemeContext } from '../app/_layout';
 import { AreaInsights } from './AreaInsights';
@@ -64,6 +74,14 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 export const InsightsMapView = () => {
+  if (Platform.OS === 'web') {
+    return (
+      <RNView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+        <RNText>Map is not supported on web. Please use the mobile app.</RNText>
+      </RNView>
+    );
+  }
+
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'issue' | 'event' | 'resolved'>('all');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [customDestination, setCustomDestination] = useState('');

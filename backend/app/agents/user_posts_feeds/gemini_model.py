@@ -1,10 +1,9 @@
-import re
-import json
 from google import genai
 from google.genai import types
-
-from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt
+from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt, create_route_prompt
 from .constants import GEMINI_API_KEY
+import re
+import json
 
 def set_gemini_output_injson(output):
   json_text = re.search(r'\{.*\}', output, re.DOTALL)
@@ -27,7 +26,8 @@ class GeminiModel:
         self.task_prompt_creator = {
             "post_analysis": create_analysis_prompt, 
             "similar_post_summarization": create_similar_posts_summarizer_prompt, 
-            "summarizer": summarizer_prompt
+            "summarizer": summarizer_prompt,
+            "route": create_route_prompt
         }
 
 
@@ -43,15 +43,6 @@ class GeminiModel:
         return set_gemini_output_injson(response.text)
 
 
-if __name__ == "__main__":
-    gemini_obj = GeminiModel(api_key='pokok')
-    output = gemini_obj()
-
 
 GeminiAgent = GeminiModel(api_key=GEMINI_API_KEY)
 
-
-
-if __name__ == "__main__":
-    gemini_obj = GeminiModel(api_key='pokok')
-    output = gemini_obj()
