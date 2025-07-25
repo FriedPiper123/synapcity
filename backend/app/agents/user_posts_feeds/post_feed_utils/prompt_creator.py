@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+
 
 def create_analysis_prompt(kwargs) -> str:
     """
@@ -191,6 +193,7 @@ def summarizer_prompt(kwargs):
     issue_tag = kwargs.get("issue_tag", "general concern").strip()
     location = kwargs.get("location", "").strip()
     summaries = kwargs.get("summaries", "").strip()
+    time_from = kwargs.get("time_from", datetime.now())
     
     # Validate required inputs
     if not summaries:
@@ -223,9 +226,12 @@ INPUT SUMMARIES:
 ANALYSIS REQUIREMENTS:
 1. **Content Analysis**: Read all summaries and identify common themes, patterns, and concerns
 2. **Categorization**: Confirm or refine the category based on actual content
-3. **Research**: Conduct a web search to find 2-3 relevant articles or resources related to this issue/event.
+3. **External references and Research**: Conduct a web search to find 2-3 relevant articles or resources related to this issue/event.
    - All links must be direct (not redirects), publicly accessible, and return HTTP 200 OK and it should be the actual real links
-     and not 'vertexaisearch.cloud.google.com'
+     and not *vertexaisearch.cloud.google.com*
+   - the links or references should not be old than {time_from}
+   - *Please note* that you need to open the link, if it is irrelevant or invalid link that should not be included in my output. It is ok to not include 
+      such links than to include it
    - Do not include placeholder, broken, redirect-only, or inaccessible links.
    - Prefer trusted sources (e.g. news outlets, official sites).
 

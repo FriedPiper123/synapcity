@@ -30,12 +30,12 @@ class GeminiModel:
         }
 
 
-    def __call__(self, task, google_search=False, **kwargs):
+    def __call__(self, task, google_search=False, gemini_model_type = "gemini-2.5-flash", **kwargs):
         if task not in self.task_prompt_creator:
             raise ValueError(f"{task} is not supported. Supported tasks are {self.task_prompt_creator.keys()}")
         input_prompt = self.task_prompt_creator[task](kwargs)
         response = self.client.models.generate_content(
-                                                model="gemini-2.5-flash",
+                                                model=gemini_model_type,
                                                 contents=input_prompt,
                                                 config = self.config if google_search else None
                                                 )
