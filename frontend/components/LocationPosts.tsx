@@ -57,7 +57,7 @@ export const LocationPosts: React.FC<LocationPostsProps> = ({
       setError(null);
       
       const response = await apiFetch(
-        `http://192.168.1.5:8000/api/v1/posts/nearby?latitude=${latitude}&longitude=${longitude}&radius_km=${radiusKm}`
+        `http://192.168.1.24:8000/api/v1/posts/nearby?latitude=${latitude}&longitude=${longitude}&radius_km=${radiusKm}`
       );
       
       if (!response.ok) {
