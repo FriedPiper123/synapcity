@@ -197,6 +197,8 @@ export const Dashboard = () => {
   };
 
   const getLocationName = () => {
+    console.log('Dashboard - selectedLocationName:', selectedLocationName);
+    console.log('Dashboard - selectedLocation:', selectedLocation);
     return selectedLocationName;
   };
 
@@ -326,18 +328,18 @@ export const Dashboard = () => {
         <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-xl lg:rounded-2xl p-4 lg:p-6 text-white">
           <h2 className="text-lg lg:text-2xl font-bold mb-2">Welcome back, {username}!</h2>
           <p className="text-blue-100 text-sm lg:text-base mb-3 lg:mb-4">Your city is thriving with community engagement</p>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-            <div className="flex items-center space-x-2">
-              <MapPin className="w-4 h-4 lg:w-5 lg:h-5" />
-              <span className="text-sm lg:text-base font-medium">{getLocationName()}</span>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-4 h-4 lg:w-5 lg:h-5" />
+                <span className="text-sm lg:text-base font-medium">{getLocationName()}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
+                <span className="text-sm lg:text-base font-medium">
+                  +{stats?.engagementPercentage || 0}% engagement
+                </span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
-              <span className="text-sm lg:text-base font-medium">
-                +{stats?.engagementPercentage || 0}% engagement
-              </span>
-            </div>
-          </div>
         </div>
       )}
 

@@ -16,6 +16,7 @@ interface LocationContextType {
   pinCurrentLocation: () => Promise<void>;
   clearSelectedLocation: () => void;
   getLocationDisplayName: (location?: LocationData) => string;
+  refreshLocationName: () => Promise<void>;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -56,8 +57,11 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         });
       });
 
+      console.log('Got geolocation position:', position.coords);
+
       // Fetch location name from Google Maps API
       const locationName = await fetchLocationName(position.coords.latitude, position.coords.longitude);
+      console.log('Fetched location name for current location:', locationName);
 
       const newLocation: LocationData = {
         latitude: position.coords.latitude,
@@ -65,10 +69,12 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         locationName: locationName,
       };
 
+      console.log('Setting current location:', newLocation);
       setCurrentLocation(newLocation);
       
       // If no location is selected, use current location as default
       if (!selectedLocation) {
+        console.log('Setting selected location to current location');
         setSelectedLocationState(newLocation);
       }
     } catch (err) {
@@ -90,6 +96,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   const setSelectedLocation = async (location: LocationData) => {
     // Always fetch location name to ensure it's up to date
     const locationName = await fetchLocationName(location.latitude, location.longitude);
+    console.log('Fetched location name for selected location:', locationName);
     setSelectedLocationState({ ...location, locationName });
   };
 
@@ -99,27 +106,42 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const getLocationDisplayName = (location?: LocationData): string => {
     const targetLocation = location || selectedLocation || currentLocation;
+    console.log('getLocationDisplayName - targetLocation:', targetLocation);
     if (!targetLocation) {
+      console.log('getLocationDisplayName - no location found, returning default');
       return 'Current Location';
     }
+    console.log('getLocationDisplayName - returning locationName:', targetLocation.locationName);
     return targetLocation.locationName;
+  };
+
+  const refreshLocationName = async () => {
+    if (selectedLocation) {
+      console.log('Refreshing location name for selected location');
+      const newLocationName = await fetchLocationName(selectedLocation.latitude, selectedLocation.longitude);
+      setSelectedLocationState({
+        ...selectedLocation,
+        locationName: newLocationName
+      });
+    }
   };
 
   // Helper to fetch location name from Google Maps Geocoding API
   const fetchLocationName = async (latitude: number, longitude: number): Promise<string> => {
     try {
-      const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
-      if (!apiKey) {
-        console.warn('Google Maps API key not found, using coordinates as fallback');
-        return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-      }
-
+      // Use a hardcoded API key for now (you should move this to environment variables)
+      const apiKey = 'AIzaSyDTea-zPVH7xGr-FvmGZrm7WrqJdfCU9zo';
+      
+      console.log('Fetching location name for coordinates:', latitude, longitude);
+      
       const res = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
       );
       
       if (res.ok) {
         const data = await res.json();
+        console.log('Google Maps API response:', data);
+        
         if (data.status === 'OK' && data.results && data.results.length > 0) {
           // Try to get a more specific location name
           const result = data.results[0];
@@ -128,6 +150,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           // Look for locality (city) and administrative_area_level_1 (state/province)
           let city = '';
           let state = '';
+          let country = '';
           
           for (const component of addressComponents) {
             if (component.types.includes('locality')) {
@@ -136,30 +159,52 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
             if (component.types.includes('administrative_area_level_1')) {
               state = component.long_name;
             }
+            if (component.types.includes('country')) {
+              country = component.long_name;
+            }
           }
           
           // Return city, state if available, otherwise use formatted address
           if (city && state) {
-            return `${city}, ${state}`;
+            const locationName = `${city}, ${state}`;
+            console.log('Resolved location name:', locationName);
+            return locationName;
           } else if (city) {
+            console.log('Resolved location name:', city);
             return city;
           } else {
+            console.log('Using formatted address:', result.formatted_address);
             return result.formatted_address;
           }
+        } else {
+          console.warn('Google Maps API returned no results or error:', data.status);
         }
+      } else {
+        console.error('Google Maps API request failed:', res.status);
       }
     } catch (e) {
       console.error('Error fetching location name:', e);
     }
     
     // Fallback to coordinates if API fails
-    return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    const fallbackName = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    console.log('Using fallback location name:', fallbackName);
+    return fallbackName;
   };
 
   // Get initial location on app start
   useEffect(() => {
     getCurrentLocation();
   }, []);
+
+  // Monitor state changes for debugging
+  useEffect(() => {
+    console.log('LocationContext - currentLocation changed:', currentLocation);
+  }, [currentLocation]);
+
+  useEffect(() => {
+    console.log('LocationContext - selectedLocation changed:', selectedLocation);
+  }, [selectedLocation]);
 
   const value: LocationContextType = {
     currentLocation,
@@ -171,6 +216,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     pinCurrentLocation,
     clearSelectedLocation,
     getLocationDisplayName,
+    refreshLocationName,
   };
 
   return (

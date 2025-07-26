@@ -1,3 +1,4 @@
+import React from 'react';
 import { useLocation } from '../contexts/LocationContext';
 
 export const useLocationName = () => {
@@ -18,19 +19,30 @@ export const useLocationName = () => {
   };
 
   const getCurrentLocationName = (): string => {
-    return getLocationDisplayName(currentLocation || undefined);
+    const name = getLocationDisplayName(currentLocation || undefined);
+    console.log('useLocationName - getCurrentLocationName:', name);
+    return name;
   };
 
   const getSelectedLocationName = (): string => {
-    return getLocationDisplayName(selectedLocation || undefined);
+    const name = getLocationDisplayName(selectedLocation || undefined);
+    console.log('useLocationName - getSelectedLocationName:', name);
+    return name;
   };
+
+  console.log('useLocationName - selectedLocation:', selectedLocation);
+  console.log('useLocationName - currentLocation:', currentLocation);
+
+  // Use useMemo to ensure reactive updates
+  const currentLocationName = React.useMemo(() => getCurrentLocationName(), [currentLocation]);
+  const selectedLocationName = React.useMemo(() => getSelectedLocationName(), [selectedLocation]);
 
   return {
     getLocationName,
     getCurrentLocationName,
     getSelectedLocationName,
-    currentLocationName: getCurrentLocationName(),
-    selectedLocationName: getSelectedLocationName(),
+    currentLocationName,
+    selectedLocationName,
     isLoading,
     hasLocation: !!(selectedLocation || currentLocation)
   };
