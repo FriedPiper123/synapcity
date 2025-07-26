@@ -278,7 +278,7 @@ async def get_best_route(data: RouteRequest):
     origin = data.origin.strip()
     destination = data.destination.strip()
     departure_time = data.departure_time or int(datetime.now().timestamp() * 1000)
-
+   
     try:
         # Use the intelligence engine as an async context manager
         async with SynapCitySmartTrafficIntelligence() as synap_city:

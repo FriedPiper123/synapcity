@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GoogleMap, Marker, Circle, useJsApiLoader, Polyline } from '@react-google-maps/api';
+import { GoogleMap, Marker, Circle, useJsApiLoader, Polyline, InfoWindow } from '@react-google-maps/api';
 import { apiFetch } from '../lib/api';
 import { useLocation } from '../contexts/LocationContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   MapPin, 
   Search, 
@@ -37,8 +38,94 @@ import {
   Shield,
   Car,
   Bus,
-  Train
+  Train,
+  Timer,
+  MapPinIcon,
+  Milestone,
+  ExternalLink,
+  Star,
+  Target,
+  PlayCircle
 } from 'lucide-react';
+
+// Types for Google Maps API Response
+type GoogleMapsRoute = {
+  bounds: {
+    northeast: { lat: number; lng: number };
+    southwest: { lat: number; lng: number };
+  };
+  copyrights: string;
+  legs: Array<{
+    distance: { text: string; value: number };
+    duration: { text: string; value: number };
+    duration_in_traffic?: { text: string; value: number };
+    end_address: string;
+    end_location: { lat: number; lng: number };
+    start_address: string;
+    start_location: { lat: number; lng: number };
+    steps: Array<{
+      distance: { text: string; value: number };
+      duration: { text: string; value: number };
+      end_location: { lat: number; lng: number };
+      start_location: { lat: number; lng: number };
+      html_instructions: string;
+      polyline: { points: string };
+      travel_mode: string;
+      maneuver?: string;
+    }>;
+  }>;
+  overview_polyline: { points: string };
+  summary: string;
+  warnings: string[];
+  waypoint_order: number[];
+};
+
+type RouteInsight = {
+  route_id: number;
+  insights: Array<{
+    group_id: string;
+    overall_status: string;
+    recommendation: string;
+    confidence_score: number;
+    summary: string;
+    traffic_analysis: {
+      speed_reduction_percent: number;
+      delay_minutes: number;
+      congestion_level: string;
+      flow_confidence: number;
+    };
+    active_incidents: Array<{
+      type: string;
+      severity: string;
+      description: string;
+      estimated_delay: number;
+      source: string;
+      reliability: number;
+    }>;
+    weather_impact: {
+      impact_level: string;
+      conditions: string;
+      visibility_km: number | null;
+      affecting_traffic: boolean;
+    };
+    key_factors: string[];
+    alternative_suggestion: string | null;
+    estimated_total_delay: number;
+    last_updated: string;
+  }>;
+  last_updated: string;
+};
+
+type RouteResponse = {
+  geocoded_waypoints: Array<{
+    geocoder_status: string;
+    place_id: string;
+    types: string[];
+  }>;
+  routes: GoogleMapsRoute[];
+  status: string;
+  insights: RouteInsight[];
+};
 
 // Types
 type Severity = 'high' | 'medium' | 'low';
@@ -137,6 +224,11 @@ export default function MapPage() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<any>(null);
+  
+  // New state for start/end markers and route labels
+  const [startLocation, setStartLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
+  const [endLocation, setEndLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
+  const [showRouteLabels, setShowRouteLabels] = useState<{[key: number]: boolean}>({});
   
   const { selectedLocation, getCurrentLocation } = useLocation();
 
@@ -238,6 +330,119 @@ export default function MapPage() {
     }, 200);
   };
 
+  // Helper function to get insights for a specific route
+  const getRouteInsights = (routeIndex: number): RouteInsight | undefined => {
+    if (!routeResults?.insights) return undefined;
+    return routeResults.insights.find(insight => insight.route_id === routeIndex);
+  };
+
+  // Google Maps Polyline Decoder
+  const decodePolyline = (encoded: string): Array<{ lat: number; lng: number }> => {
+    const points: Array<{ lat: number; lng: number }> = [];
+    let index = 0;
+    const len = encoded.length;
+    let lat = 0;
+    let lng = 0;
+
+    while (index < len) {
+      let b;
+      let shift = 0;
+      let result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.push({
+        lat: lat / 1e5,
+        lng: lng / 1e5
+      });
+    }
+
+    return points;
+  };
+
+  // Extract polyline data from Google Maps route
+  const getRoutePolyline = (route: GoogleMapsRoute): Array<{ lat: number; lng: number }> => {
+    if (route.overview_polyline && route.overview_polyline.points) {
+      return decodePolyline(route.overview_polyline.points);
+    }
+    
+    // Fallback to leg-by-leg polylines
+    const points: Array<{ lat: number; lng: number }> = [];
+    route.legs.forEach(leg => {
+      leg.steps.forEach(step => {
+        if (step.polyline && step.polyline.points) {
+          points.push(...decodePolyline(step.polyline.points));
+        }
+      });
+    });
+    
+    return points;
+  };
+
+  // Get route summary from Google Maps data
+  const getRouteSummary = (route: GoogleMapsRoute, insights?: RouteInsight) => {
+    const leg = route.legs[0]; // For single-leg routes
+    const distance = leg.distance.text;
+    const duration = leg.duration.text;
+    const durationInTraffic = leg.duration_in_traffic?.text || duration;
+    
+    // Calculate delay
+    const baseDuration = leg.duration.value / 60; // minutes
+    const trafficDuration = leg.duration_in_traffic?.value ? leg.duration_in_traffic.value / 60 : baseDuration;
+    const delay = Math.max(0, Math.round(trafficDuration - baseDuration));
+    
+    // Get traffic status from insights
+    let trafficStatus = 'clear';
+    let recommendation = 'proceed';
+    let confidence = 0.8;
+    
+    if (insights) {
+      const groupStatuses = insights.insights.map(group => group.overall_status);
+      if (groupStatuses.includes('blocked')) {
+        trafficStatus = 'blocked';
+        recommendation = 'avoid';
+      } else if (groupStatuses.includes('heavy')) {
+        trafficStatus = 'heavy';
+        recommendation = 'caution';
+      } else if (groupStatuses.includes('moderate')) {
+        trafficStatus = 'moderate';
+        recommendation = 'caution';
+      }
+      
+      // Average confidence
+      const confidenceScores = insights.insights.map(group => group.confidence_score);
+      confidence = confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length;
+    }
+    
+    return {
+      distance,
+      duration,
+      durationInTraffic,
+      delay,
+      trafficStatus,
+      recommendation,
+      confidence,
+      summary: route.summary,
+      startAddress: leg.start_address,
+      endAddress: leg.end_address
+    };
+  };
+
   const handlePlanRoute = async () => {
     setDateTimeError(null);
     
@@ -275,12 +480,43 @@ export default function MapPage() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data: RouteResponse = await response.json();
+        console.log('Route Results received:', data);
+        console.log('Routes count:', data.routes?.length);
+        console.log('Insights count:', data.insights?.length);
         setRouteResults(data);
-        // Auto-select the best route
-        if (data.best_route_id !== null) {
-          const bestRouteIndex = data.routes.findIndex((route: any) => route.route_id === data.best_route_id);
-          setSelectedRouteIndex(bestRouteIndex >= 0 ? bestRouteIndex : 0);
+        
+        // Auto-select the first route (index 0) by default
+        if (data.routes && data.routes.length > 0) {
+          setSelectedRouteIndex(0);
+          setSelectedRoute(data.routes[0]);
+          
+          // Set start and end locations for markers
+          const firstRoute = data.routes[0];
+          if (firstRoute.legs && firstRoute.legs.length > 0) {
+            const leg = firstRoute.legs[0];
+            setStartLocation({
+              lat: leg.start_location.lat,
+              lng: leg.start_location.lng,
+              address: leg.start_address
+            });
+            setEndLocation({
+              lat: leg.end_location.lat,
+              lng: leg.end_location.lng,
+              address: leg.end_address
+            });
+          }
+          
+          // Center map on route bounds
+          if (data.routes[0].bounds) {
+            const bounds = data.routes[0].bounds;
+            const center = {
+              lat: (bounds.northeast.lat + bounds.southwest.lat) / 2,
+              lng: (bounds.northeast.lng + bounds.southwest.lng) / 2
+            };
+            setMapCenter(center);
+            setMapZoom(12);
+          }
         }
       } else {
         const errorData = await response.json();
@@ -322,43 +558,48 @@ export default function MapPage() {
     return 'text-red-600';
   };
 
-  // Generate polyline data for routes
-  const generateRoutePolyline = (route: any) => {
-    if (route.polyline && route.polyline.length > 0) {
-      return route.polyline;
-    }
+  // Function to open route in Google Maps
+  const openInGoogleMaps = (route: GoogleMapsRoute, routeIndex: number) => {
+    if (!route || !route.legs || route.legs.length === 0) return;
     
-    // Generate realistic polyline data with multiple waypoints
-    // This simulates actual route coordinates
-    const baseRoute = [
-      { lat: 12.9716, lng: 77.5946 }, // Bangalore center
-      { lat: 12.9789, lng: 77.6408 }, // Indiranagar
-      { lat: 13.0067, lng: 77.5617 }, // Malleshwaram
-      { lat: 13.0507, lng: 77.5877 }, // Hebbal
-      { lat: 13.1986, lng: 77.7066 }  // Airport
-    ];
+    const leg = route.legs[0];
+    const origin = encodeURIComponent(leg.start_address);
+    const destination = encodeURIComponent(leg.end_address);
     
-    // Add some variation based on route ID
-    if (route.route_id === 1) {
-      return [
-        { lat: 12.9716, lng: 77.5946 }, // Bangalore center
-        { lat: 12.9352, lng: 77.6245 }, // Koramangala
-        { lat: 12.9141, lng: 77.6387 }, // HSR Layout
-        { lat: 12.9716, lng: 77.5946 }, // Bellandur
-        { lat: 13.1986, lng: 77.7066 }  // Airport
-      ];
-    } else if (route.route_id === 2) {
-      return [
-        { lat: 12.9716, lng: 77.5946 }, // Bangalore center
-        { lat: 12.9245, lng: 77.5877 }, // Jayanagar
-        { lat: 12.9141, lng: 77.6387 }, // JP Nagar
-        { lat: 12.8458, lng: 77.6658 }, // Electronic City
-        { lat: 13.1986, lng: 77.7066 }  // Airport
-      ];
-    }
+    // Create Google Maps URL with directions
+    const googleMapsUrl = `https://www.google.com/maps/dir/${origin}/${destination}`;
     
-    return baseRoute;
+    // Open in new tab
+    window.open(googleMapsUrl, '_blank');
   };
+
+  // Function to get route label
+  const getRouteLabel = (routeIndex: number, isRecommended: boolean, isSelected: boolean) => {
+    if (isRecommended) return "Best Route";
+    if (routeIndex === 1) return "Alternative";
+    if (routeIndex === 2) return "Scenic Route";
+    return `Option ${routeIndex + 1}`;
+  };
+
+  // Function to get route badge color
+  const getRouteBadgeColor = (routeIndex: number, isRecommended: boolean) => {
+    if (isRecommended) return "bg-green-600 text-white";
+    if (routeIndex === 1) return "bg-blue-600 text-white";
+    if (routeIndex === 2) return "bg-purple-600 text-white";
+    return "bg-gray-600 text-white";
+  };
+
+  // Function to clear route results and reset map
+  const clearRouteResults = () => {
+    setRouteResults(null);
+    setSelectedRouteIndex(null);
+    setSelectedRoute(null);
+    setStartLocation(null);
+    setEndLocation(null);
+    setRouteError(null);
+    setShowRouteLabels({});
+  };
+
 
   useEffect(() => {
     fetchPosts();
@@ -610,6 +851,44 @@ export default function MapPage() {
                       />
                     )}
 
+                    {/* Start Location Marker */}
+                    {startLocation && (
+                      <Marker
+                        position={{ lat: startLocation.lat, lng: startLocation.lng }}
+                        title={`Start: ${startLocation.address}`}
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="16" cy="16" r="14" fill="#22c55e" stroke="white" stroke-width="3"/>
+                              <path d="M12 16L14.5 18.5L20 13" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                              <text x="16" y="8" fill="white" text-anchor="middle" font-size="8" font-weight="bold">START</text>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 32),
+                          anchor: new google.maps.Point(16, 32),
+                        }}
+                      />
+                    )}
+
+                    {/* End Location Marker */}
+                    {endLocation && (
+                      <Marker
+                        position={{ lat: endLocation.lat, lng: endLocation.lng }}
+                        title={`Destination: ${endLocation.address}`}
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="16" cy="16" r="14" fill="#ef4444" stroke="white" stroke-width="3"/>
+                              <path d="M16 10V22M10 16H22" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                              <text x="16" y="8" fill="white" text-anchor="middle" font-size="7" font-weight="bold">END</text>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 32),
+                          anchor: new google.maps.Point(16, 32),
+                        }}
+                      />
+                    )}
+
                     {/* Render markers */}
                     {filteredData.map((item) => (
                       <div key={item.id}>
@@ -642,7 +921,7 @@ export default function MapPage() {
                     {/* Draw the selected route polyline if available */}
                     {selectedRouteIndex !== null && routeResults && routeResults.routes[selectedRouteIndex] && (
                       <Polyline
-                        path={generateRoutePolyline(routeResults.routes[selectedRouteIndex])}
+                        path={getRoutePolyline(routeResults.routes[selectedRouteIndex])}
                         options={{ 
                           strokeColor: '#2563eb', 
                           strokeWeight: 5, 
@@ -653,23 +932,58 @@ export default function MapPage() {
                     )}
                     
                     {/* Draw all route polylines with different colors */}
-                    {routeResults && routeResults.routes && routeResults.routes.map((route: any, idx: number) => {
+                    {routeResults && routeResults.routes && routeResults.routes.map((route: GoogleMapsRoute, idx: number) => {
                       const isSelected = selectedRouteIndex === idx;
-                      const isRecommended = routeResults.summary?.recommended_route_id === route.route_id || 
-                                           routeResults.best_route_id === route.route_id;
+                      const isRecommended = idx === 0; // First route is recommended by default
                       
-                      const polylineData = generateRoutePolyline(route);
+                      const polylineData = getRoutePolyline(route);
                       if (!polylineData || polylineData.length === 0) return null;
                       
                       return (
                         <Polyline
-                          key={`route-${route.route_id}`}
+                          key={`google-route-${idx}`}
                           path={polylineData}
                           options={{ 
                             strokeColor: isSelected ? '#2563eb' : (isRecommended ? '#10b981' : '#6b7280'),
                             strokeWeight: isSelected ? 5 : 3,
                             strokeOpacity: isSelected ? 0.8 : 0.6,
                             geodesic: true
+                          }}
+                        />
+                      );
+                    })}
+
+                    {/* Route Labels/Info Windows */}
+                    {routeResults && routeResults.routes && routeResults.routes.map((route: GoogleMapsRoute, idx: number) => {
+                      const isSelected = selectedRouteIndex === idx;
+                      const isRecommended = idx === 0;
+                      const polylineData = getRoutePolyline(route);
+                      
+                      if (!polylineData || polylineData.length === 0) return null;
+                      
+                      // Get midpoint of route for label placement
+                      const midIndex = Math.floor(polylineData.length / 2);
+                      const labelPosition = polylineData[midIndex];
+                      
+                      if (!labelPosition) return null;
+                      
+                      return (
+                        <Marker
+                          key={`route-label-${idx}`}
+                          position={labelPosition}
+                          icon={{
+                            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                              <svg width="80" height="30" viewBox="0 0 80 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="2" width="76" height="26" rx="13" fill="${isRecommended ? '#10b981' : (isSelected ? '#2563eb' : '#6b7280')}" stroke="white" stroke-width="2"/>
+                                <text x="40" y="19" fill="white" text-anchor="middle" font-size="10" font-weight="bold">${getRouteLabel(idx, isRecommended, isSelected).toUpperCase()}</text>
+                              </svg>
+                            `),
+                            scaledSize: new google.maps.Size(80, 30),
+                            anchor: new google.maps.Point(40, 15),
+                          }}
+                          onClick={() => {
+                            setSelectedRouteIndex(idx);
+                            setSelectedRoute(route);
                           }}
                         />
                       );
@@ -789,23 +1103,36 @@ export default function MapPage() {
 
                 <div className="md:col-span-2">
                   <Label className="text-sm font-medium mb-2">Actions</Label>
-                  <Button 
-                    className="w-full" 
-                    onClick={handlePlanRoute}
-                    disabled={routePlanning}
-                  >
-                    {routePlanning ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Planning Route...
-                      </>
-                    ) : (
-                      <>
-                        <Route className="w-4 h-4 mr-2" />
-                        Plan Route
-                      </>
+                  <div className="space-y-2">
+                    <Button 
+                      className="w-full" 
+                      onClick={handlePlanRoute}
+                      disabled={routePlanning}
+                    >
+                      {routePlanning ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Planning Route...
+                        </>
+                      ) : (
+                        <>
+                          <Route className="w-4 h-4 mr-2" />
+                          Plan Route
+                        </>
+                      )}
+                    </Button>
+                    
+                    {routeResults && (
+                      <Button 
+                        variant="outline"
+                        className="w-full" 
+                        onClick={clearRouteResults}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Clear Routes
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </div>
               </div>
               
@@ -830,255 +1157,250 @@ export default function MapPage() {
                   <CheckCircle className="w-4 h-4 text-blue-500" />
                   <span className="font-medium text-blue-700">Route Analysis Complete</span>
                 </div>
-                <p className="text-sm text-blue-600">{routeResults.summary?.overall_summary || routeResults.overall_summary}</p>
+                <p className="text-sm text-blue-600">Found {routeResults.routes.length} route option(s) with traffic insights</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-blue-600">
-                  <span>📊 {routeResults.summary?.total_routes_found || routeResults.total_routes} routes analyzed</span>
-                  <span>⚡ {routeResults.response_time_ms}ms</span>
+                  <span>📊 {routeResults.routes.length} routes analyzed</span>
+                  <span>🗺️ Google Maps powered</span>
+                  <span>⚡ Real-time traffic data</span>
                 </div>
                 
-                {/* Enhanced Analysis Metadata */}
-                {routeResults.metadata?.data_sources && (
+                {/* Status Information */}
+                {routeResults.status && (
                   <div className="mt-3 pt-3 border-t border-blue-200">
-                    <div className="text-xs text-blue-700 mb-1">
-                      <span className="font-medium">Data Sources:</span> {routeResults.metadata.data_sources.join(', ')}
+                    <div className="text-xs text-blue-700">
+                      <span className="font-medium">Status:</span> {routeResults.status}
                     </div>
-                    {routeResults.metadata.overall_reliability && (
-                      <div className="text-xs text-blue-700">
-                        <span className="font-medium">Reliability:</span> {(routeResults.metadata.overall_reliability * 100).toFixed(0)}%
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
 
-              {/* Horizontal Route Cards */}
+              {/* Route Options Tabs */}
               {routeResults.routes && (
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-800">Route Options</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-gray-800">Route Options</h4>
+                    <Badge variant="outline" className="text-xs">
+                      {routeResults.routes.length} route{routeResults.routes.length !== 1 ? 's' : ''} found
+                    </Badge>
+                  </div>
                   
-                  {/* Horizontal Scrollable Route Cards */}
-                  <div className="overflow-x-auto">
-                    <div className="flex gap-4 pb-4" style={{ minWidth: 'max-content' }}>
-                      {routeResults.routes.map((route: any, idx: number) => {
-                        const isRecommended = routeResults.summary?.recommended_route_id === route.route_id || 
-                                             routeResults.best_route_id === route.route_id;
-                        const isSelected = selectedRouteIndex === idx;
-                        const statusConfig = routeStatusColors[route.recommendation?.status || route.overall_status || 'clear'] || routeStatusColors.clear;
+                  <Tabs 
+                    value={selectedRouteIndex?.toString() || "0"} 
+                    onValueChange={(value) => {
+                      const idx = parseInt(value);
+                      setSelectedRouteIndex(idx);
+                      setSelectedRoute(routeResults.routes[idx]);
+                      
+                      // Center map on route bounds
+                      const route = routeResults.routes[idx];
+                      if (route.bounds) {
+                        const bounds = route.bounds;
+                        const center = {
+                          lat: (bounds.northeast.lat + bounds.southwest.lat) / 2,
+                          lng: (bounds.northeast.lng + bounds.southwest.lng) / 2
+                        };
+                        setMapCenter(center);
+                        setMapZoom(12);
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-3 mb-4">
+                      {routeResults.routes.slice(0, 3).map((route: GoogleMapsRoute, idx: number) => {
+                        const isRecommended = idx === 0;
+                        const routeInsights = getRouteInsights(idx);
+                        const routeSummary = getRouteSummary(route, routeInsights);
                         
                         return (
-                          <div
-                            key={route.route_id}
-                            className={`border rounded-lg p-4 cursor-pointer transition-all min-w-[300px] max-w-[350px] ${
-                              isRecommended ? 'border-green-600 bg-green-50' : 'border-gray-200'
-                            } ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-                            onClick={() => {
-                              setSelectedRouteIndex(idx);
-                              setSelectedRoute(route);
-                            }}
+                          <TabsTrigger 
+                            key={idx} 
+                            value={idx.toString()}
+                            className="relative data-[state=active]:bg-white data-[state=active]:shadow-sm"
                           >
-                            {/* Route Header */}
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-lg">{route.route_name || `Route ${idx + 1}`}</span>
-                                {isRecommended && (
-                                  <Badge className="bg-green-600 text-white text-xs">Recommended</Badge>
-                                )}
-                                {isSelected && (
-                                  <Badge className="bg-blue-600 text-white text-xs">Selected</Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {getRouteStatusIcon(route.recommendation?.status || route.overall_status)}
-                                <span className="text-sm font-medium" style={{ color: statusConfig.text }}>
-                                  {(route.recommendation?.status || route.overall_status || 'clear').toUpperCase()}
-                                </span>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              {isRecommended && <Star className="w-3 h-3 text-yellow-500" />}
+                              <span className="font-medium">
+                                {getRouteLabel(idx, isRecommended, false)}
+                              </span>
+                              {isRecommended && (
+                                <Badge className="bg-green-600 text-white text-xs ml-1">Best</Badge>
+                              )}
                             </div>
-
-                            {/* Route Details */}
-                            <div className="space-y-2 mb-3">
-                              <div className="flex items-center gap-2">
-                                <ClockIcon className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm">
-                                  <span className="font-medium">Duration:</span> {route.summary?.current_duration || formatDelay(route.total_estimated_delay)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm">
-                                  <span className="font-medium">Recommendation:</span> 
-                                  <Badge className={`ml-1 text-xs ${getRecommendationColor(route.recommendation?.status || route.recommendation)}`}>
-                                    {(route.recommendation?.status || route.recommendation || 'proceed').toUpperCase()}
-                                  </Badge>
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Zap className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm">
-                                  <span className="font-medium">Confidence:</span> 
-                                  <span className={`ml-1 ${getConfidenceColor(route.summary?.confidence_score || route.confidence_score)}`}>
-                                    {((route.summary?.confidence_score || route.confidence_score) * 100).toFixed(0)}%
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Route Summary */}
-                            <div className="text-sm text-gray-600 mb-3">
-                              {route.summary?.traffic_impact || route.summary}
-                            </div>
-
-                            {/* Route Segments Preview */}
-                            {route.route_segments && route.route_segments.length > 0 && (
-                              <div className="space-y-2">
-                                <h5 className="text-xs font-medium text-gray-700">Route Segments:</h5>
-                                {route.route_segments.slice(0, 2).map((segment: any, segmentIdx: number) => (
-                                  <div key={segmentIdx} className="text-xs bg-gray-50 p-2 rounded">
-                                    <div className="flex items-center gap-1 mb-1">
-                                      {getRouteStatusIcon(segment.traffic_status)}
-                                      <span className="font-medium">{segment.segment_id}</span>
-                                    </div>
-                                    <div className="text-gray-600">
-                                      {segment.duration} • {segment.distance}
-                                    </div>
-                                  </div>
-                                ))}
-                                {route.route_segments.length > 2 && (
-                                  <div className="text-xs text-gray-500 text-center">
-                                    +{route.route_segments.length - 2} more segments
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Legacy Route Groups */}
-                            {route.groups && route.groups.length > 0 && (
-                              <div className="space-y-2">
-                                <h5 className="text-xs font-medium text-gray-700">Route Segments:</h5>
-                                {route.groups.slice(0, 2).map((group: any, groupIdx: number) => (
-                                  <div key={groupIdx} className="text-xs bg-gray-50 p-2 rounded">
-                                    <div className="flex items-center gap-1 mb-1">
-                                      {getRouteStatusIcon(group.overall_status)}
-                                      <span className="font-medium">{group.group_id}</span>
-                                    </div>
-                                    <div className="text-gray-600">
-                                      {group.summary}
-                                    </div>
-                                    
-                                    {/* Enhanced Group Details */}
-                                    {group.traffic_analysis && (
-                                      <div className="mt-2 space-y-1">
-                                        <div className="flex items-center gap-1">
-                                          <TrendingUp className="w-3 h-3 text-blue-500" />
-                                          <span className="text-blue-600">
-                                            {group.traffic_analysis.speed_reduction_percent}% speed reduction
-                                          </span>
-                                        </div>
-                                        {group.traffic_analysis.delay_minutes && (
-                                          <div className="flex items-center gap-1">
-                                            <ClockIcon className="w-3 h-3 text-orange-500" />
-                                            <span className="text-orange-600">
-                                              +{group.traffic_analysis.delay_minutes} min delay
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Active Incidents */}
-                                    {group.active_incidents && group.active_incidents.length > 0 && (
-                                      <div className="mt-2">
-                                        <div className="font-medium text-red-600 mb-1">Active Issues:</div>
-                                        {group.active_incidents.slice(0, 1).map((incident: any, incidentIdx: number) => (
-                                          <div key={incidentIdx} className="text-red-600 text-xs mb-1">
-                                            • {incident.description}
-                                          </div>
-                                        ))}
-                                        {group.active_incidents.length > 1 && (
-                                          <div className="text-xs text-gray-500">
-                                            +{group.active_incidents.length - 1} more issues
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Weather Impact */}
-                                    {group.weather_impact && group.weather_impact.affecting_traffic && (
-                                      <div className="mt-2">
-                                        <div className="flex items-center gap-1">
-                                          <AlertTriangle className="w-3 h-3 text-yellow-500" />
-                                          <span className="text-yellow-600 text-xs">
-                                            Weather: {group.weather_impact.conditions} ({group.weather_impact.impact_level} impact)
-                                          </span>
-                                        </div>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Key Factors */}
-                                    {group.key_factors && group.key_factors.length > 0 && (
-                                      <div className="mt-2">
-                                        <div className="font-medium text-gray-700 mb-1">Key Factors:</div>
-                                        {group.key_factors.slice(0, 1).map((factor: string, factorIdx: number) => (
-                                          <div key={factorIdx} className="text-gray-600 text-xs mb-1">
-                                            • {factor}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Alternative Suggestion */}
-                                    {group.alternative && (
-                                      <div className="mt-2">
-                                        <div className="flex items-center gap-1">
-                                          <Navigation className="w-3 h-3 text-green-500" />
-                                          <span className="text-green-600 text-xs">
-                                            Alternative: {group.alternative}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                                {route.groups.length > 2 && (
-                                  <div className="text-xs text-gray-500 text-center">
-                                    +{route.groups.length - 2} more segments
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            
-                            {/* Action Buttons */}
-                            <div className="mt-4 flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={isSelected ? "default" : "outline"}
-                                className="flex-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRouteIndex(idx);
-                                  setSelectedRoute(route);
-                                }}
-                              >
-                                {isSelected ? (
-                                  <>
-                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                    Selected
-                                  </>
-                                ) : (
-                                  <>
-                                    <MapPin className="w-4 h-4 mr-1" />
-                                    View on Map
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
+                          </TabsTrigger>
                         );
                       })}
-                    </div>
-                  </div>
+                    </TabsList>
+
+                    {routeResults.routes.slice(0, 3).map((route: GoogleMapsRoute, idx: number) => {
+                      const isRecommended = idx === 0;
+                      const routeInsights = getRouteInsights(idx);
+                      const routeSummary = getRouteSummary(route, routeInsights);
+                      const statusConfig = routeStatusColors[routeSummary.trafficStatus as keyof typeof routeStatusColors] || routeStatusColors.clear;
+                      
+                      return (
+                        <TabsContent key={idx} value={idx.toString()} className="mt-0">
+                          <Card className="border-0 shadow-sm">
+                            <CardContent className="p-6">
+                              {/* Simplified Route Header */}
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-lg font-semibold text-gray-900">{routeSummary.summary}</h3>
+                                  <div className="flex items-center gap-1">
+                                    {getRouteStatusIcon(routeSummary.trafficStatus)}
+                                    <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ 
+                                      backgroundColor: statusConfig.bg, 
+                                      color: statusConfig.text 
+                                    }}>
+                                      {routeSummary.trafficStatus}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openInGoogleMaps(route, idx);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  <ExternalLink className="w-4 h-4 mr-1" />
+                                  Open in Maps
+                                </Button>
+                              </div>
+
+                              {/* Essential Route Information */}
+                              <div className="grid grid-cols-3 gap-4 mb-4">
+                                <div className="text-center">
+                                  <div className="text-sm text-gray-500">Distance</div>
+                                  <div className="text-lg font-semibold text-gray-900">{routeSummary.distance}</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-sm text-gray-500">Duration</div>
+                                  <div className="text-lg font-semibold text-gray-900">{routeSummary.durationInTraffic}</div>
+                                  {routeSummary.delay > 0 && (
+                                    <div className="text-xs text-orange-600">+{routeSummary.delay} min delay</div>
+                                  )}
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-sm text-gray-500">Confidence</div>
+                                  <div className={`text-lg font-semibold ${getConfidenceColor(routeSummary.confidence)}`}>
+                                    {(routeSummary.confidence * 100).toFixed(0)}%
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Traffic Issues Summary */}
+                              {routeInsights && routeInsights.insights.length > 0 && (
+                                <div className="mb-4">
+                                  {(() => {
+                                    const allIncidents = routeInsights.insights.flatMap(insight => insight.active_incidents || []);
+                                    const criticalIssues = allIncidents.filter(incident => incident.severity === 'critical' || incident.severity === 'high');
+                                    
+                                    if (criticalIssues.length > 0) {
+                                      return (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                                            <span className="text-sm font-medium text-red-700">Critical Issues</span>
+                                          </div>
+                                          <div className="text-sm text-red-600">
+                                            {criticalIssues[0].description}
+                                            {criticalIssues.length > 1 && (
+                                              <span className="text-xs text-red-500 ml-2">
+                                                +{criticalIssues.length - 1} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else if (allIncidents.length > 0) {
+                                      return (
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Info className="w-4 h-4 text-yellow-500" />
+                                            <span className="text-sm font-medium text-yellow-700">Minor Issues</span>
+                                          </div>
+                                          <div className="text-sm text-yellow-600">
+                                            {allIncidents[0].description}
+                                            {allIncidents.length > 1 && (
+                                              <span className="text-xs text-yellow-500 ml-2">
+                                                +{allIncidents.length - 1} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle className="w-4 h-4 text-green-500" />
+                                            <span className="text-sm font-medium text-green-700">No Issues Reported</span>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* Collapsible Additional Details */}
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" className="w-full justify-between p-0 h-auto text-sm text-gray-600 hover:text-gray-900">
+                                    <span>View Details</span>
+                                    <ChevronDown className="w-4 h-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-3 mt-3">
+                                  {/* Route Addresses */}
+                                  <div className="space-y-2 text-sm">
+                                    <div>
+                                      <span className="text-gray-500">From:</span>
+                                      <div className="text-gray-700">{routeSummary.startAddress}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">To:</span>
+                                      <div className="text-gray-700">{routeSummary.endAddress}</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Detailed Traffic Analysis */}
+                                  {routeInsights && routeInsights.insights.length > 0 && (
+                                    <div className="space-y-2">
+                                      <h6 className="text-sm font-medium text-gray-700">Traffic Analysis</h6>
+                                      {routeInsights.insights.map((insight: any, insightIdx: number) => (
+                                        <div key={insightIdx} className="bg-gray-50 p-3 rounded-lg">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            {getRouteStatusIcon(insight.overall_status)}
+                                            <span className="text-sm font-medium text-gray-700">{insight.group_id}</span>
+                                          </div>
+                                          <div className="text-sm text-gray-600 mb-2">{insight.summary}</div>
+                                          
+                                          {insight.active_incidents && insight.active_incidents.length > 0 && (
+                                            <div className="space-y-1">
+                                              {insight.active_incidents.map((incident: any, incidentIdx: number) => (
+                                                <div key={incidentIdx} className="text-xs text-red-600 flex items-start gap-1">
+                                                  <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                                  <span>{incident.description}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                      );
+                    })}
+                  </Tabs>
                 </div>
               )}
             </div>
