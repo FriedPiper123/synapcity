@@ -575,10 +575,15 @@ export default function MapPage() {
 
   // Function to get route label
   const getRouteLabel = (routeIndex: number, isRecommended: boolean, isSelected: boolean) => {
+    return `R${routeIndex}`;
+  };
+
+  // Function to get full route name for tabs
+  const getFullRouteLabel = (routeIndex: number, isRecommended: boolean) => {
     if (isRecommended) return "Best Route";
     if (routeIndex === 1) return "Alternative";
     if (routeIndex === 2) return "Scenic Route";
-    return `Option ${routeIndex + 1}`;
+    return `Route ${routeIndex + 1}`;
   };
 
   // Function to get route badge color
@@ -587,6 +592,31 @@ export default function MapPage() {
     if (routeIndex === 1) return "bg-blue-600 text-white";
     if (routeIndex === 2) return "bg-purple-600 text-white";
     return "bg-gray-600 text-white";
+  };
+
+  // Function to get route colors for polylines and labels
+  const getRouteColors = (routeIndex: number, isSelected: boolean, isRecommended: boolean) => {
+    if (isSelected) return { stroke: '#2563eb', fill: '#2563eb' }; // Blue for selected
+    if (isRecommended) return { stroke: '#10b981', fill: '#10b981' }; // Green for recommended
+    if (routeIndex === 1) return { stroke: '#8b5cf6', fill: '#8b5cf6' }; // Purple for alternative
+    if (routeIndex === 2) return { stroke: '#f59e0b', fill: '#f59e0b' }; // Orange for scenic
+    return { stroke: '#6b7280', fill: '#6b7280' }; // Gray for others
+  };
+
+  // Function to get meaningful segment name
+  const getSegmentName = (groupId: string, index: number) => {
+    if (groupId.includes('group_')) {
+      const segmentNames = [
+        'Starting Area',
+        'Mid Route',
+        'Destination Area',
+        'Highway Section',
+        'City Center',
+        'Residential Area'
+      ];
+      return segmentNames[index] || `Segment ${index + 1}`;
+    }
+    return groupId.replace('group_', '').replace('_', ' ');
   };
 
   // Function to clear route results and reset map
@@ -935,6 +965,7 @@ export default function MapPage() {
                     {routeResults && routeResults.routes && routeResults.routes.map((route: GoogleMapsRoute, idx: number) => {
                       const isSelected = selectedRouteIndex === idx;
                       const isRecommended = idx === 0; // First route is recommended by default
+                      const colors = getRouteColors(idx, isSelected, isRecommended);
                       
                       const polylineData = getRoutePolyline(route);
                       if (!polylineData || polylineData.length === 0) return null;
@@ -944,9 +975,9 @@ export default function MapPage() {
                           key={`google-route-${idx}`}
                           path={polylineData}
                           options={{ 
-                            strokeColor: isSelected ? '#2563eb' : (isRecommended ? '#10b981' : '#6b7280'),
+                            strokeColor: colors.stroke,
                             strokeWeight: isSelected ? 5 : 3,
-                            strokeOpacity: isSelected ? 0.8 : 0.6,
+                            strokeOpacity: isSelected ? 0.9 : 0.7,
                             geodesic: true
                           }}
                         />
@@ -957,6 +988,7 @@ export default function MapPage() {
                     {routeResults && routeResults.routes && routeResults.routes.map((route: GoogleMapsRoute, idx: number) => {
                       const isSelected = selectedRouteIndex === idx;
                       const isRecommended = idx === 0;
+                      const colors = getRouteColors(idx, isSelected, isRecommended);
                       const polylineData = getRoutePolyline(route);
                       
                       if (!polylineData || polylineData.length === 0) return null;
@@ -973,13 +1005,13 @@ export default function MapPage() {
                           position={labelPosition}
                           icon={{
                             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                              <svg width="80" height="30" viewBox="0 0 80 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="2" y="2" width="76" height="26" rx="13" fill="${isRecommended ? '#10b981' : (isSelected ? '#2563eb' : '#6b7280')}" stroke="white" stroke-width="2"/>
-                                <text x="40" y="19" fill="white" text-anchor="middle" font-size="10" font-weight="bold">${getRouteLabel(idx, isRecommended, isSelected).toUpperCase()}</text>
+                              <svg width="40" height="24" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="2" width="36" height="20" rx="10" fill="${colors.fill}" stroke="white" stroke-width="2"/>
+                                <text x="20" y="15" fill="white" text-anchor="middle" font-size="11" font-weight="bold">${getRouteLabel(idx, isRecommended, isSelected)}</text>
                               </svg>
                             `),
-                            scaledSize: new google.maps.Size(80, 30),
-                            anchor: new google.maps.Point(40, 15),
+                            scaledSize: new google.maps.Size(40, 24),
+                            anchor: new google.maps.Point(20, 12),
                           }}
                           onClick={() => {
                             setSelectedRouteIndex(idx);
@@ -1148,32 +1180,9 @@ export default function MapPage() {
             </CardContent>
           </Card>
 
-          {/* Enhanced Route Results Display */}
+          {/* Route Results Display */}
           {routeResults && (
             <div className="space-y-4">
-              {/* Overall Summary */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium text-blue-700">Route Analysis Complete</span>
-                </div>
-                <p className="text-sm text-blue-600">Found {routeResults.routes.length} route option(s) with traffic insights</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-blue-600">
-                  <span>📊 {routeResults.routes.length} routes analyzed</span>
-                  <span>🗺️ Google Maps powered</span>
-                  <span>⚡ Real-time traffic data</span>
-                </div>
-                
-                {/* Status Information */}
-                {routeResults.status && (
-                  <div className="mt-3 pt-3 border-t border-blue-200">
-                    <div className="text-xs text-blue-700">
-                      <span className="font-medium">Status:</span> {routeResults.status}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Route Options Tabs */}
               {routeResults.routes && (
                 <div className="space-y-4">
@@ -1220,7 +1229,7 @@ export default function MapPage() {
                             <div className="flex items-center gap-2">
                               {isRecommended && <Star className="w-3 h-3 text-yellow-500" />}
                               <span className="font-medium">
-                                {getRouteLabel(idx, isRecommended, false)}
+                                {getFullRouteLabel(idx, isRecommended)}
                               </span>
                               {isRecommended && (
                                 <Badge className="bg-green-600 text-white text-xs ml-1">Best</Badge>
@@ -1367,32 +1376,34 @@ export default function MapPage() {
                                     </div>
                                   </div>
 
-                                  {/* Detailed Traffic Analysis */}
-                                  {routeInsights && routeInsights.insights.length > 0 && (
-                                    <div className="space-y-2">
-                                      <h6 className="text-sm font-medium text-gray-700">Traffic Analysis</h6>
-                                      {routeInsights.insights.map((insight: any, insightIdx: number) => (
-                                        <div key={insightIdx} className="bg-gray-50 p-3 rounded-lg">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            {getRouteStatusIcon(insight.overall_status)}
-                                            <span className="text-sm font-medium text-gray-700">{insight.group_id}</span>
-                                          </div>
-                                          <div className="text-sm text-gray-600 mb-2">{insight.summary}</div>
-                                          
-                                          {insight.active_incidents && insight.active_incidents.length > 0 && (
-                                            <div className="space-y-1">
-                                              {insight.active_incidents.map((incident: any, incidentIdx: number) => (
-                                                <div key={incidentIdx} className="text-xs text-red-600 flex items-start gap-1">
-                                                  <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                                                  <span>{incident.description}</span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                                                     {/* Detailed Traffic Analysis */}
+                                   {routeInsights && routeInsights.insights.length > 0 && (
+                                     <div className="space-y-2">
+                                       <h6 className="text-sm font-medium text-gray-700">Traffic Analysis</h6>
+                                       {routeInsights.insights.map((insight: any, insightIdx: number) => (
+                                         <div key={insightIdx} className="bg-gray-50 p-3 rounded-lg">
+                                           <div className="flex items-center gap-2 mb-2">
+                                             {getRouteStatusIcon(insight.overall_status)}
+                                             <span className="text-sm font-medium text-gray-700">
+                                               {getSegmentName(insight.group_id, insightIdx)}
+                                             </span>
+                                           </div>
+                                           <div className="text-sm text-gray-600 mb-2">{insight.summary}</div>
+                                           
+                                           {insight.active_incidents && insight.active_incidents.length > 0 && (
+                                             <div className="space-y-1">
+                                               {insight.active_incidents.map((incident: any, incidentIdx: number) => (
+                                                 <div key={incidentIdx} className="text-xs text-red-600 flex items-start gap-1">
+                                                   <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                                   <span>{incident.description}</span>
+                                                 </div>
+                                               ))}
+                                             </div>
+                                           )}
+                                         </div>
+                                       ))}
+                                     </div>
+                                   )}
                                 </CollapsibleContent>
                               </Collapsible>
                             </CardContent>
