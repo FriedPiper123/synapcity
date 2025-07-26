@@ -85,11 +85,11 @@ export const Dashboard = () => {
 
       // Fetch stats and activities in parallel
       const statsPromise = apiFetch(
-        `http://192.168.1.24:8000/api/v1/dashboard/stats?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+        `http://0.0.0.0:8000/api/v1/dashboard/stats?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
       
       const activitiesPromise = apiFetch(
-        `http://192.168.1.24:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0&limit=10`
+        `http://0.0.0.0:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0&limit=10`
       );
 
       // Race between timeout and API calls

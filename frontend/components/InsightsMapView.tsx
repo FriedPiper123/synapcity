@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as React from 'react';
 import { useContext, useState, useEffect } from 'react';
-import { Animated, Dimensions, PanResponder, ScrollView as RNScrollView, StyleSheet, View, Modal, Alert, LayoutAnimation, Platform, UIManager, Pressable, findNodeHandle, RefreshControl } from 'react-native';
+import { Animated, Dimensions, PanResponder, ScrollView as RNScrollView, StyleSheet, View, Modal, Alert, LayoutAnimation, UIManager, Pressable, findNodeHandle, RefreshControl } from 'react-native';
 import { Platform, View as RNView, Text as RNText } from 'react-native';
 
 let MapViewRN, Marker, Circle, PROVIDER_GOOGLE;
@@ -137,13 +137,13 @@ export const InsightsMapView = () => {
     try {
       setLoading(true);
       const response = await apiFetch(
-        `http://192.168.1.24:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+        `http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
       
       if (response.ok) {
         const data = await response.json();
         // Transform the data to match our MapDataItem interface
-        const transformedData: MapDataItem[] = data.map((post: any, index: number) => ({
+        const transformedData: MapDataItem[] = data?.map((post: any, index: number) => ({
           id: post.postId || `post-${index}`,
           type: post.type || 'issue',
           title: post.content?.substring(0, 50) + (post.content?.length > 50 ? '...' : '') || 'Untitled',
@@ -428,7 +428,7 @@ export const InsightsMapView = () => {
           />
         )}
         {/* Render real markers */}
-        {filteredData.map((item) => (
+        {filteredData?.map((item) => (
           <React.Fragment key={item.id}>
             <Marker
               coordinate={{
@@ -500,7 +500,7 @@ export const InsightsMapView = () => {
             />
             <Text style={{ marginBottom: 8, fontWeight: 'bold', color: theme.colors.onSurface }}>Preset Destinations</Text>
             <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 8 }}>
-              {destinations.map(dest => (
+              {destinations?.map(dest => (
                 <Chip
                   key={dest.id}
                   selected={routePreset?.id === dest.id}
@@ -921,7 +921,7 @@ export const InsightsMapView = () => {
                     </Text>
                   </View>
                 ) : (
-                  filteredData.map((item, idx) => (
+                  filteredData?.map((item, idx) => (
                     <View key={item.id} style={[styles.dataRow, { 
                       backgroundColor: selectedMarker?.id === item.id ? theme.colors.primaryContainer : 'transparent',
                       borderRadius: 8,
