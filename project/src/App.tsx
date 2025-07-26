@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LocationProvider } from "./contexts/LocationContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ActivitiesProvider } from "./contexts/ActivitiesContext";
+import { InsightsProvider } from "./contexts/InsightsContext";
 import { PersistentLayout } from "./components/PersistentLayout";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -29,21 +30,23 @@ const App = () => (
         <BrowserRouter>
           <LocationProvider>
             <ActivitiesProvider>
-              <PersistentLayout>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/map" element={<MapPage />} />
-                <Route path="/insights" element={<InsightsPage />} />
-                <Route path="/create" element={<CreatePostPage />} />
-                <Route path="/feed" element={<FeedPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/summary" element={<SummaryPage />} />
-                <Route path="/post/:postId" element={<PostDetail />} />
-                <Route path="/activity/:activityId" element={<ActivityDetail />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </PersistentLayout>
+              <InsightsProvider>
+                <PersistentLayout>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/map" element={<MapPage />} />
+                  <Route path="/insights" element={<InsightsPage />} />
+                  <Route path="/create" element={<CreatePostPage />} />
+                  <Route path="/feed" element={<FeedPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/summary" element={<SummaryPage />} />
+                  <Route path="/post/:postId" element={<PostDetail />} />
+                  <Route path="/activity/:activityId" element={<ActivityDetail />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </PersistentLayout>
+              </InsightsProvider>
             </ActivitiesProvider>
           </LocationProvider>
         </BrowserRouter>
