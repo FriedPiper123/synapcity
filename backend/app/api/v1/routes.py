@@ -269,10 +269,9 @@ def create_alternatives(routes: List[RouteData], best_route_id: int) -> Alternat
     
     return alternatives
 
-@router.post("/best-route", response_model=EnhancedRoutesResponse)
+@router.post("/best-route")
 async def get_best_route(data: RouteRequest):
     """Get the best route with comprehensive analysis using new API structure."""
-    start_time = datetime.now()
     request_id = f"req_{uuid.uuid4().hex[:8]}"
 
     # Prepare arguments
@@ -285,7 +284,13 @@ async def get_best_route(data: RouteRequest):
         async with SynapCitySmartTrafficIntelligence() as synap_city:
             # Fetch route insights from local intelligence engine
             routes_with_insights = await synap_city.get_per_route_insights(origin, destination, departure_time)
+            from pprint import pprint
 
+            # pprint(routes_with_insights)
+
+            return routes_with_insights
+
+            # print(100*"%")
             # Extract insights and metadata
             insights = routes_with_insights.get('insights', [])
             analysis_metadata = routes_with_insights.get('analysis_metadata', {})
