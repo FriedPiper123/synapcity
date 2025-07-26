@@ -295,10 +295,9 @@ async def get_recent_activities_endpoint(
             )
         
         activities = get_recent_activities(latitude, longitude, radius_km, limit)
-        from pprint import pprint
-        import json
-        pprint(json.dumps(activities[0]))
-
+        # from pprint import pprint
+        # import json
+        return {"activities": activities}
 
         return {"activities": [
             {"content":"Join us for a community cleanup event in [area name] on [date]. We'll provide all supplies. Let's make our neighborhood beautiful together!","type":"event","category":"community","location":{"latitude":12.9093255,"longitude":77.6529664},"neighborhood":"200, Sector 2, HSR Layout, Bengaluru, Karnataka 560102, India","mediaUrl":null,"parentId":null,"geohash":"tdr1rn","postId":"7e4b1d24-7e6f-43ab-8a8a-df956e3269f7","authorId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","author":{"userId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","username":"Ayush Bisht","profileImageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJ_cYHVsP2ENU4ZYb4TuvBlSPiOa63JoSG_0KQpN6aF8MYnaA=s96-c"},"upvotes":0,"downvotes":0,"upvotedBy":[],"downvotedBy":[],"commentCount":1,"createdAt":"2025-07-25T08:42:36.836572Z","status":"active"},

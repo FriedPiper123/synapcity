@@ -15,6 +15,7 @@ import PostDetail from './pages/PostDetail';
 import FeedPage from './pages/Feed';
 import ProfilePage from './pages/Profile';
 import SummaryPage from './pages/Summary';
+import ActivityDetail from './pages/ActivityDetail';
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/summary" element={<SummaryPage />} />
                 <Route path="/post/:postId" element={<PostDetail />} />
+                <Route path="/activity/:activityId" element={<ActivityDetail />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

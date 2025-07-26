@@ -11,13 +11,22 @@ import {
 } from 'firebase/auth';
 
 // Firebase configuration
+// const firebaseConfig = {
+//   apiKey: "AIzaSyB5oiBTSReaSQd7FLMxdyjjhynGIq5rjyE",
+//   authDomain: "synapcity-app.firebaseapp.com",
+//   projectId: "synapcity-app",
+//   storageBucket: "synapcity-app.appspot.com",
+//   messagingSenderId: "123456789",
+//   appId: "1:123456789:web:abcdef123456"
+// };
+
 const firebaseConfig = {
-  apiKey: "AIzaSyB5oiBTSReaSQd7FLMxdyjjhynGIq5rjyE",
-  authDomain: "synapcity-app.firebaseapp.com",
-  projectId: "synapcity-app",
-  storageBucket: "synapcity-app.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
+  apiKey: "AIzaSyC22n0TfqG12ZHfXK6emzbLkdeDec2opvg",
+  authDomain: "fastpiper-ca012.firebaseapp.com",
+  projectId: "fastpiper-ca012",
+  storageBucket: "fastpiper-ca012.firebasestorage.app",
+  messagingSenderId: "454574265841",
+  appId: "1:454574265841:web:247ac61ee23acaac3a2050"
 };
 
 // Initialize Firebase

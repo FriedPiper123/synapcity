@@ -7,6 +7,7 @@ from firebase_admin import firestore
 
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 from ...core.firebase import db
+from ...core.cache import cached_posts_endpoint, posts_cache_stats, clear_posts_cache
 from ...models.post import Post, PostCreate, PostUpdate, PostType, PostCategory
 from ...models.user import User
 from ..deps import get_current_active_user
@@ -100,6 +101,7 @@ async def create_post(
         )
 
 @router.get("/nearby", response_model=List[Post])
+@cached_posts_endpoint(max_age_seconds=300, max_memory_mb=10)
 async def get_posts_by_location(
     latitude: float = Query(..., description="Latitude of the user's location"),
     longitude: float = Query(..., description="Longitude of the user's location"),
@@ -190,6 +192,7 @@ async def get_posts_by_location(
         )
 
 @router.get("/post/{post_id}", response_model=Post)
+@cached_posts_endpoint(max_age_seconds=600, max_memory_mb=5)
 async def get_post_by_id(post_id: str):
     try:
         post_ref = db.collection('posts').document(post_id)
@@ -300,4 +303,15 @@ async def downvote_post(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        ) 
+        )
+
+@router.get("/cache/stats")
+async def get_posts_cache_stats():
+    """Get posts cache statistics"""
+    return posts_cache_stats()
+
+@router.post("/cache/clear")
+async def clear_posts_cache_endpoint():
+    """Clear posts cache"""
+    clear_posts_cache()
+    return {"message": "Posts cache cleared successfully"} 
