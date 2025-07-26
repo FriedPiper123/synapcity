@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+import uuid
+from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Any, Dict
 import httpx
@@ -263,4 +264,279 @@ async def get_best_route(data: RouteRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while processing route data"
+        )
+
+
+def get_fallback_predictions(query: str) -> List[Dict]:
+    """Fallback function to provide local search results when AI model is not available."""
+    query_lower = query.lower()
+    
+    # Local Bangalore locations database for fallback
+    bangalore_locations = {
+        # Areas
+        'koramangala': {'name': 'Koramangala', 'type': 'area', 'lat': 12.9352, 'lng': 77.6245},
+        'indiranagar': {'name': 'Indiranagar', 'type': 'area', 'lat': 12.9789, 'lng': 77.6408},
+        'whitefield': {'name': 'Whitefield', 'type': 'area', 'lat': 12.9716, 'lng': 77.5946},
+        'electronic': {'name': 'Electronic City', 'type': 'area', 'lat': 12.8458, 'lng': 77.6658},
+        'hsr': {'name': 'HSR Layout', 'type': 'area', 'lat': 12.9141, 'lng': 77.6387},
+        'btm': {'name': 'BTM Layout', 'type': 'area', 'lat': 12.9141, 'lng': 77.6387},
+        'jayanagar': {'name': 'Jayanagar', 'type': 'area', 'lat': 12.9245, 'lng': 77.5877},
+        'malleshwaram': {'name': 'Malleshwaram', 'type': 'area', 'lat': 13.0067, 'lng': 77.5617},
+        'banashankari': {'name': 'Banashankari', 'type': 'area', 'lat': 12.9245, 'lng': 77.5877},
+        'jp nagar': {'name': 'JP Nagar', 'type': 'area', 'lat': 12.9141, 'lng': 77.6387},
+        'rajajinagar': {'name': 'Rajajinagar', 'type': 'area', 'lat': 13.0067, 'lng': 77.5617},
+        'hebbal': {'name': 'Hebbal', 'type': 'area', 'lat': 13.0507, 'lng': 77.5877},
+        'bellandur': {'name': 'Bellandur', 'type': 'area', 'lat': 12.9716, 'lng': 77.5946},
+        'marathahalli': {'name': 'Marathahalli', 'type': 'area', 'lat': 12.9716, 'lng': 77.5946},
+        
+        # Landmarks
+        'cubbon': {'name': 'Cubbon Park', 'type': 'landmark', 'lat': 12.9716, 'lng': 77.5946},
+        'lalbagh': {'name': 'Lalbagh Botanical Garden', 'type': 'landmark', 'lat': 12.9507, 'lng': 77.5848},
+        'palace': {'name': 'Bangalore Palace', 'type': 'landmark', 'lat': 12.9981, 'lng': 77.5925},
+        'vidhana soudha': {'name': 'Vidhana Soudha', 'type': 'landmark', 'lat': 12.9791, 'lng': 77.5913},
+        'iskcon': {'name': 'ISKCON Temple', 'type': 'landmark', 'lat': 12.9716, 'lng': 77.5946},
+        
+        # Transport
+        'airport': {'name': 'Kempegowda International Airport', 'type': 'transport', 'lat': 13.1986, 'lng': 77.7066},
+        'majestic': {'name': 'Majestic Bus Station', 'type': 'transport', 'lat': 12.9774, 'lng': 77.5716},
+        
+        # Shopping
+        'phoenix': {'name': 'Phoenix MarketCity', 'type': 'shopping', 'lat': 12.9716, 'lng': 77.5946},
+        'forum': {'name': 'Forum Mall', 'type': 'shopping', 'lat': 12.9352, 'lng': 77.6245},
+        'ub city': {'name': 'UB City Mall', 'type': 'shopping', 'lat': 12.9716, 'lng': 77.5946},
+        'garuda': {'name': 'Garuda Mall', 'type': 'shopping', 'lat': 12.9716, 'lng': 77.5946},
+        
+        # Tech Parks
+        'manyata': {'name': 'Manyata Tech Park', 'type': 'business', 'lat': 12.9716, 'lng': 77.5946},
+        'embassy tech': {'name': 'Embassy Tech Village', 'type': 'business', 'lat': 12.9716, 'lng': 77.5946},
+        'electronic city': {'name': 'Electronic City', 'type': 'business', 'lat': 12.8458, 'lng': 77.6658},
+        
+        # Common categories
+        'restaurant': {'name': 'Popular Restaurants in Bangalore', 'type': 'food', 'lat': 12.9716, 'lng': 77.5946},
+        'cafe': {'name': 'Popular Cafes in Bangalore', 'type': 'food', 'lat': 12.9716, 'lng': 77.5946},
+        'hospital': {'name': 'Major Hospitals in Bangalore', 'type': 'healthcare', 'lat': 12.9716, 'lng': 77.5946},
+        'clinic': {'name': 'Medical Clinics in Bangalore', 'type': 'healthcare', 'lat': 12.9716, 'lng': 77.5946},
+        'school': {'name': 'Schools in Bangalore', 'type': 'education', 'lat': 12.9716, 'lng': 77.5946},
+        'college': {'name': 'Colleges in Bangalore', 'type': 'education', 'lat': 12.9716, 'lng': 77.5946},
+        'university': {'name': 'Universities in Bangalore', 'type': 'education', 'lat': 12.9716, 'lng': 77.5946},
+        'hotel': {'name': 'Hotels in Bangalore', 'type': 'accommodation', 'lat': 12.9716, 'lng': 77.5946},
+        'bank': {'name': 'Banks in Bangalore', 'type': 'business', 'lat': 12.9716, 'lng': 77.5946},
+        'atm': {'name': 'ATMs in Bangalore', 'type': 'business', 'lat': 12.9716, 'lng': 77.5946},
+        'gas station': {'name': 'Petrol Pumps in Bangalore', 'type': 'transport', 'lat': 12.9716, 'lng': 77.5946},
+        'petrol pump': {'name': 'Petrol Pumps in Bangalore', 'type': 'transport', 'lat': 12.9716, 'lng': 77.5946},
+    }
+    
+    results = []
+    
+    # Search for exact matches first
+    for key, location in bangalore_locations.items():
+        if query_lower in key or key in query_lower:
+            results.append({
+                'place_id': f"fallback_{location['name'].lower().replace(' ', '_')}",
+                'description': location['name'],
+                'structured_formatting': {
+                    'main_text': location['name'],
+                    'secondary_text': f"{location['type']} • Fallback"
+                },
+                'types': [location['type']],
+                'metadata': {
+                    'confidence': 0.8,
+                    'popular': True,
+                    'coordinates': {
+                        'latitude': location['lat'],
+                        'longitude': location['lng']
+                    }
+                }
+            })
+    
+    # Return top 5 results
+    return results[:5]
+
+
+@router.get("/test-gemini")
+async def test_gemini():
+    """Test endpoint to check if Gemini model is working."""
+    try:
+        from app.agents.user_posts_feeds.gemini_model import GeminiModel
+        from app.agents.user_posts_feeds.constants import GEMINI_API_KEY
+        
+        if not GEMINI_API_KEY:
+            return {"error": "GEMINI_API_KEY not configured"}
+        
+        gemini_model = GeminiModel(api_key=GEMINI_API_KEY)
+        
+        # Simple test
+        response = gemini_model(
+            task="location_prediction",
+            user_input="test",
+            max_results=1,
+            city="Bangalore"
+        )
+        
+        return {"success": True, "response": response}
+        
+    except Exception as e:
+        logger.error(f"Gemini test failed: {e}")
+        return {"error": str(e)}
+
+@router.get("/autocomplete")
+async def get_location_autocomplete(
+    query: str = Query(..., min_length=2, description="Location search query")
+):
+    """Get location suggestions for autocomplete using AI-based prediction."""
+    try:
+        # Import the AI model and prompt creator
+        from app.agents.user_posts_feeds.gemini_model import GeminiModel
+        from app.agents.user_posts_feeds.constants import GEMINI_API_KEY
+        from app.agents.user_posts_feeds.post_feed_utils.prompt_creator import get_quick_matches
+        
+        # First, check for quick matches
+        quick_match = get_quick_matches(query.lower(), "Bangalore")
+        logger.info(f"Quick match for '{query}': {quick_match}")
+        
+        if quick_match and "HIGH CONFIDENCE:" in quick_match:
+            # Extract the location name from quick match
+            location_name = quick_match.replace("HIGH CONFIDENCE: '", "").replace("'", "")
+            logger.info(f"Using quick match: {location_name}")
+            
+            # Return quick match result
+            quick_result = {
+                "place_id": f"quick_{location_name.lower().replace(' ', '_')}",
+                "description": location_name,
+                "structured_formatting": {
+                    "main_text": location_name,
+                    "secondary_text": "Quick Match"
+                },
+                "types": ["geocode"],
+                "metadata": {
+                    "confidence": 0.95,
+                    "popular": True,
+                    "coordinates": {
+                        "latitude": 12.9716,  # Default Bangalore coordinates
+                        "longitude": 77.5946
+                    }
+                }
+            }
+            
+            return {"predictions": [quick_result]}
+        
+        # If no quick match, proceed with AI model
+        logger.info(f"No quick match found for '{query}', using AI model")
+        
+        if not GEMINI_API_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Gemini API key not configured"
+            )
+        
+        # Initialize the AI model
+        gemini_model = GeminiModel(api_key=GEMINI_API_KEY)
+        
+        # Define generic terms to filter out
+        GENERIC_TERMS = [
+            'near me', 'my area', 'close', 'something', 'around me', 'nearby', 
+            'current location', 'my place', 'here', 'this area', 'my location',
+            'where i am', 'my vicinity', 'my neighborhood', 'my city'
+        ]
+        
+        def is_real_location(prediction):
+            """Filter out generic queries and ensure only real locations are returned."""
+            name = prediction.get('name', '').lower()
+            display = prediction.get('display', '').lower()
+            
+            # Check for generic terms
+            for term in GENERIC_TERMS:
+                if term in name or term in display:
+                    return False
+            
+            # Ensure it has valid coordinates
+            lat = prediction.get('lat')
+            lng = prediction.get('lng')
+            if not lat or not lng:
+                return False
+            
+            # Ensure it has a valid type
+            location_type = prediction.get('type', '').lower()
+            valid_types = ['area', 'landmark', 'business', 'transport', 'shopping', 'food']
+            if location_type not in valid_types:
+                return False
+            
+            return True
+        
+        # Use AI-based location prediction with optimized prompt
+        try:
+            logger.info(f"Calling AI model for query: {query}")
+            ai_response = gemini_model(
+                task="location_prediction",
+                user_input=query,
+                max_results=5,
+                city="Bangalore"
+            )
+            
+            logger.info(f"AI response received: {ai_response}")
+            
+            # Extract predictions from AI response
+            predictions = ai_response.get('predictions', [])
+            logger.info(f"Extracted {len(predictions)} predictions from AI response")
+            
+            # Filter out generic queries and ensure only real locations
+            filtered_predictions = []
+            for pred in predictions:
+                logger.info(f"Processing prediction: {pred}")
+                if is_real_location(pred):
+                    # Transform to match frontend expectations
+                    filtered_predictions.append({
+                        'place_id': f"ai_{pred.get('name', '').replace(' ', '_').lower()}",
+                        'description': pred.get('name', ''),
+                        'structured_formatting': {
+                            'main_text': pred.get('display', pred.get('name', '')),
+                            'secondary_text': f"{pred.get('type', 'location')} • {pred.get('confidence', 0.5):.1f}"
+                        },
+                        'types': [pred.get('type', 'geocode')],
+                        'metadata': {
+                            'confidence': pred.get('confidence', 0.5),
+                            'popular': pred.get('popular', False),
+                            'coordinates': {
+                                'latitude': pred.get('lat'),
+                                'longitude': pred.get('lng')
+                            }
+                        }
+                    })
+            
+            # Sort by confidence and popularity
+            filtered_predictions.sort(key=lambda x: (
+                x['metadata']['confidence'], 
+                x['metadata']['popular']
+            ), reverse=True)
+            
+            # Limit to top 5 results for faster response
+            filtered_predictions = filtered_predictions[:5]
+            
+            logger.info(f"Returning {len(filtered_predictions)} AI predictions")
+            return {"predictions": filtered_predictions}
+            
+        except Exception as ai_error:
+            logger.error(f"AI-based location prediction failed: {ai_error}")
+            logger.error(f"Error type: {type(ai_error)}")
+            logger.error(f"Error details: {str(ai_error)}")
+            
+            # Check if it's a quota error
+            if "429" in str(ai_error) or "RESOURCE_EXHAUSTED" in str(ai_error):
+                logger.warning("Gemini API quota exceeded, falling back to local search")
+                # Fallback to local search based on the query
+                fallback_results = get_fallback_predictions(query)
+                logger.info(f"Fallback returned {len(fallback_results)} results")
+                return {"predictions": fallback_results}
+            
+            # For any other error, also try fallback
+            logger.warning("AI model failed, trying fallback search")
+            fallback_results = get_fallback_predictions(query)
+            logger.info(f"Fallback returned {len(fallback_results)} results")
+            return {"predictions": fallback_results}
+            
+    except Exception as e:
+        logger.error(f"Unexpected error in location autocomplete: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while fetching location suggestions"
         )
