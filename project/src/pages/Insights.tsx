@@ -20,29 +20,10 @@ import { useLocation } from '../contexts/LocationContext';
 export default function InsightsPage() {
   const { selectedLocation } = useLocation();
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedIncidents, setExpandedIncidents] = useState<Set<string>>(new Set());
   const [timeRange, setTimeRange] = useState('24hours');
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiFetch('http://0.0.0.0:8000/api/v1/insights/area-analysis-response');
-      if (!response.ok) throw new Error('Failed to fetch area analysis');
-      const json = await response.json();
-      setData(json);
-    } catch (err: any) {
-      setError(err.message || 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAnalyze = async () => {
     if (!selectedLocation) {
