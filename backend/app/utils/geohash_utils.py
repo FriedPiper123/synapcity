@@ -208,3 +208,161 @@ def is_within_radius(lat1: float, lon1: float, lat2: float, lon2: float, radius_
     """
     distance = calculate_distance(lat1, lon1, lat2, lon2)
     return distance <= radius_km 
+
+def get_geohash_4th_level_neighbors(geohash: str) -> List[str]:
+    """
+    Get 4th level neighbors in all 4 directions from a center geohash.
+    This creates a diamond-like pattern extending 4 cells in each direction.
+    
+    Args:
+        geohash: Center geohash string
+    
+    Returns:
+        List of geohash strings including all 4th level neighbors
+    """
+    base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+    
+    neighbors = {
+        'n': ['p0r21436x8zb9dcf5h7kjnmqesgutwvy', 'bc01fg45238967deuvhjyznpkmstqrwx'],
+        's': ['14365h7k9dcfesgujnmqp0r2twvyx8zb', '238967debc01fg45kmstqrwxuvhjyznp'],
+        'e': ['bc01fg45238967deuvhjyznpkmstqrwx', 'p0r21436x8zb9dcf5h7kjnmqesgutwvy'],
+        'w': ['238967debc01fg45kmstqrwxuvhjyznp', '14365h7k9dcfesgujnmqp0r2twvyx8zb']
+    }
+    
+    borders = {
+        'n': ['prxz', 'bcfguvyz'],
+        's': ['028b', '0145hjnp'],
+        'e': ['bcfguvyz', 'prxz'],
+        'w': ['0145hjnp', '028b']
+    }
+    
+    def adjacent(gh: str, direction: str) -> str:
+        """Get adjacent geohash in the specified direction."""
+        if len(gh) == 0:
+            return ""
+        
+        last_char = gh[-1]
+        base = gh[:-1]
+        
+        if len(base) == 0:
+            return ""
+        
+        if last_char in borders[direction][0]:
+            base = adjacent(base, direction)
+            if base == "":
+                return ""
+        
+        char_index = base32.index(last_char)
+        neighbor_chars = neighbors[direction][char_index % 2]
+        return base + neighbor_chars[char_index // 2]
+    
+    affected_cells = set([geohash])
+    
+    # Get 4 levels of neighbors in each direction
+    for level in range(1, 5):
+        # North direction
+        current = geohash
+        for _ in range(level):
+            current = adjacent(current, 'n')
+            if current:
+                affected_cells.add(current)
+        
+        # South direction
+        current = geohash
+        for _ in range(level):
+            current = adjacent(current, 's')
+            if current:
+                affected_cells.add(current)
+        
+        # East direction
+        current = geohash
+        for _ in range(level):
+            current = adjacent(current, 'e')
+            if current:
+                affected_cells.add(current)
+        
+        # West direction
+        current = geohash
+        for _ in range(level):
+            current = adjacent(current, 'w')
+            if current:
+                affected_cells.add(current)
+    
+    return list(affected_cells)
+
+def get_geohash_polygon_coords(geohash_list: List[str]) -> List[Tuple[float, float]]:
+    """
+    Create polygon coordinates that cover all the given geohash cells.
+    Returns the convex hull of all geohash bounding boxes.
+    
+    Args:
+        geohash_list: List of geohash strings
+    
+    Returns:
+        List of (latitude, longitude) tuples forming a polygon
+    """
+    if not geohash_list:
+        return []
+    
+    all_points = []
+    
+    # Get all corner points of all geohash cells
+    for gh in geohash_list:
+        min_lat, min_lon, max_lat, max_lon = get_geohash_bbox(gh)
+        # Add all 4 corners of the bounding box
+        all_points.extend([
+            (min_lat, min_lon),
+            (min_lat, max_lon),
+            (max_lat, min_lon),
+            (max_lat, max_lon)
+        ])
+    
+    if len(all_points) < 3:
+        return all_points
+    
+    # Simple convex hull algorithm (Graham scan)
+    def cross_product(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    
+    # Remove duplicates
+    points = list(set(all_points))
+    
+    if len(points) < 3:
+        return points
+    
+    # Sort points lexicographically
+    points.sort()
+    
+    # Build lower hull
+    lower = []
+    for p in points:
+        while len(lower) >= 2 and cross_product(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    
+    # Build upper hull
+    upper = []
+    for p in reversed(points):
+        while len(upper) >= 2 and cross_product(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    
+    # Remove last point of each half because it's repeated
+    return lower[:-1] + upper[:-1]
+
+def create_issue_area_polygon(latitude: float, longitude: float, precision: int = 6) -> List[Tuple[float, float]]:
+    """
+    Create a polygon for an issue post that covers the affected area.
+    Uses 4th level neighbors in all 4 directions.
+    
+    Args:
+        latitude: Issue location latitude
+        longitude: Issue location longitude
+        precision: Geohash precision (default 6)
+    
+    Returns:
+        List of (latitude, longitude) tuples forming a polygon
+    """
+    center_geohash = encode_geohash(latitude, longitude, precision)
+    affected_geohashes = get_geohash_4th_level_neighbors(center_geohash)
+    return get_geohash_polygon_coords(affected_geohashes) 

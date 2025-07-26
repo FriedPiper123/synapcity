@@ -12,7 +12,7 @@ from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
 from ...core.firebase import db
 from ...models.area import Area, AreaTrend
-from ...utils.geohash_utils import get_geohash_cells_for_radius, calculate_distance
+from ...utils.geohash_utils import get_geohash_cells_for_radius, calculate_distance, create_issue_area_polygon
 import requests
 import os
 from ...core.config import settings
@@ -352,5 +352,129 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error analyzing area: {str(e)}"
+        ) 
+
+
+@router.get("/heatmap-data")
+async def get_heatmap_data(
+    latitude: float = Query(..., description="Current location latitude"),
+    longitude: float = Query(..., description="Current location longitude"),
+    radius_km: float = Query(3.0, description="Search radius in kilometers", ge=0.1, le=10.0)
+):
+    """
+    Get heatmap data for posts within the specified radius.
+    Returns polygon coordinates for issue posts and marker data for all posts.
+    """
+    try:
+        # Validate coordinates
+        if not (-90 <= latitude <= 90):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Latitude must be between -90 and 90"
+            )
+        
+        if not (-180 <= longitude <= 180):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Longitude must be between -180 and 180"
+            )
+        
+        # Get geohash cells for the area
+        geohash_cells = get_geohash_cells_for_radius(latitude, longitude, radius_km)
+        
+        # Collect posts from all relevant geohash cells
+        all_posts = []
+        for geohash_cell in geohash_cells:
+            posts_query = db.collection('posts').where('geohash', '==', geohash_cell)
+            
+            for doc in posts_query.stream():
+                post_data = doc.to_dict()
+                post_data['postId'] = doc.id
+                
+                # Check if post is within the exact radius
+                if 'location' in post_data and hasattr(post_data['location'], 'latitude'):
+                    post_lat = post_data['location'].latitude
+                    post_lon = post_data['location'].longitude
+                    
+                    distance = calculate_distance(latitude, longitude, post_lat, post_lon)
+                    if distance <= radius_km:
+                        post_data['distance'] = distance
+                        all_posts.append(post_data)
+        
+        # Process posts for heatmap data
+        issue_polygons = []
+        markers = []
+        
+        for post in all_posts:
+            post_lat = post['location'].latitude
+            post_lon = post['location'].longitude
+            post_type = post.get('type', 'other')
+            
+            # Create marker data for all posts
+            marker_data = {
+                'id': post['postId'],
+                'type': post_type,
+                'title': post.get('content', '')[:50] + ('...' if len(post.get('content', '')) > 50 else ''),
+                'latitude': post_lat,
+                'longitude': post_lon,
+                'content': post.get('content', ''),
+                'author': post.get('author', {}).get('username', 'Anonymous'),
+                'createdAt': post.get('createdAt', ''),
+                'upvotes': post.get('upvotes', 0),
+                'downvotes': post.get('downvotes', 0),
+                'category': post.get('category', 'general'),
+                'severity': 'high' if post.get('category') in ['accident', 'emergency'] else 
+                          'medium' if post.get('category') == 'infrastructure' else 'low'
+            }
+            markers.append(marker_data)
+            
+            # Create polygon for issue posts
+            if post_type == 'issue':
+                try:
+                    polygon_coords = create_issue_area_polygon(post_lat, post_lon, precision=6)
+                    if polygon_coords:
+                        issue_polygons.append({
+                            'postId': post['postId'],
+                            'coordinates': polygon_coords,
+                            'severity': marker_data['severity'],
+                            'category': post.get('category', 'general'),
+                            'title': marker_data['title']
+                        })
+                except Exception as e:
+                    print(f"Error creating polygon for post {post['postId']}: {str(e)}")
+                    continue
+        
+        # Group overlapping polygons by severity for better visualization
+        grouped_polygons = {
+            'high': [],
+            'medium': [],
+            'low': []
+        }
+        
+        for polygon in issue_polygons:
+            severity = polygon['severity']
+            grouped_polygons[severity].append(polygon)
+        
+        return {
+            "center": {
+                "latitude": latitude,
+                "longitude": longitude
+            },
+            "radius_km": radius_km,
+            "total_posts": len(all_posts),
+            "issue_polygons": grouped_polygons,
+            "markers": markers,
+            "stats": {
+                "issues": len([p for p in markers if p['type'] == 'issue']),
+                "events": len([p for p in markers if p['type'] == 'event']),
+                "resolved": len([p for p in markers if p['type'] == 'resolved']),
+                "other": len([p for p in markers if p['type'] not in ['issue', 'event', 'resolved']])
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating heatmap data: {str(e)}"
         ) 
 
