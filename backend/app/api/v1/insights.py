@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, status, Query
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 from datetime import datetime, timezone, timedelta
 import random
 import math
 from collections import defaultdict
 import json
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
@@ -18,6 +19,12 @@ from ...core.config import settings
 from ...agents.user_posts_feeds.post_feed_utils.post_feed_utils import get_all_posts_summary
 
 router = APIRouter()
+
+# Request model for the new endpoint
+class AreaAnalysisRequest(BaseModel):
+    coordinates: Dict[str, Any]
+    analysisType: str
+    timeRange: str
 
 def analyze_posts_for_insights(latitude: float, longitude: float, radius_km: float = 5.0) -> Dict:
     """
@@ -252,9 +259,91 @@ async def get_area_analysis_response():
     Returns the static area analysis response from the JSON file.
     """
     try:
+        
         with open(os.path.join(os.path.dirname(__file__), '../../../area_analysis_response.json'), 'r') as f:
             data = json.load(f)
         return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
+
+
+@router.post("/analyze-area", response_class=JSONResponse)
+async def analyze_area_with_webhook(request: AreaAnalysisRequest):
+    """
+    Analyze area using external webhook API.
+    Takes coordinates, analysis type, and time range, then calls external API.
+    """
+    try:
+        # Validate coordinates
+        if not request.coordinates or 'lat' not in request.coordinates or 'lng' not in request.coordinates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid coordinates format. Expected 'lat' and 'lng' keys."
+            )
+        
+        lat = request.coordinates['lat']
+        lng = request.coordinates['lng']
+        
+        if not (-90 <= lat <= 90):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Latitude must be between -90 and 90"
+            )
+        
+        if not (-180 <= lng <= 180):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Longitude must be between -180 and 180"
+            )
+        
+        # Prepare payload for external API
+        payload = {
+            "coordinates": request.coordinates,
+            "analysisType": request.analysisType,
+            "timeRange": request.timeRange
+        }
+        
+        # Call external webhook API
+        webhook_url = "https://donothackmyapi.duckdns.org/webhook/analyze-area"
+        
+        try:
+            response = requests.post(
+                webhook_url,
+                json=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'SynapCityApp/1.0'
+                },
+                timeout=None
+            )
+            
+            if response.status_code == 200:
+                # Return the response from the external API
+                return JSONResponse(content=response.json())
+            else:
+                # Log the error and return a fallback response
+                print(f"External API error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"External API returned error: {response.status_code}"
+                )
+                
+        except requests.exceptions.Timeout:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="External API request timed out"
+            )
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Error calling external API: {str(e)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error analyzing area: {str(e)}"
+        ) 
 
