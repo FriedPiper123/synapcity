@@ -1,13 +1,17 @@
 from google import genai
 from google.genai import types
-from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt, create_route_prompt
+from .post_feed_utils.prompt_creator import (
+    create_analysis_prompt, 
+    create_similar_posts_summarizer_prompt, 
+    create_summarizer_prompt_without_using_external_sources, 
+    create_summarizer_prompt_using_external_sources, 
+    create_route_prompt)
 from .constants import GEMINI_API_KEY
 import re
 import json
 
 def set_gemini_output_injson(output):
   json_text = re.search(r'\{.*\}', output, re.DOTALL)
-  print(json_text.group())
   output_json = json.loads(json_text.group())
   return output_json
   
@@ -26,7 +30,8 @@ class GeminiModel:
         self.task_prompt_creator = {
             "post_analysis": create_analysis_prompt, 
             "similar_post_summarization": create_similar_posts_summarizer_prompt, 
-            "summarizer": summarizer_prompt,
+            "summarizer_prompt_without_using_external_sources": create_summarizer_prompt_without_using_external_sources,
+            "summarizer_prompt_using_external_sources": create_summarizer_prompt_using_external_sources, 
             "route": create_route_prompt
         }
 

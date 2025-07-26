@@ -175,7 +175,81 @@ def create_similar_posts_summarizer_prompt(kwargs):
 
         """
 
-def summarizer_prompt(kwargs):
+def create_summarizer_prompt_without_using_external_sources(kwargs):
+    """
+    Generate a structured prompt for summarizing user posts about issues or events.
+    
+    Args:
+        kwargs (dict): Configuration parameters including:
+            - type (str): Type of content (issue/event)
+            - issue_tag (str): Category/tag for the issue
+            - location (str): Geographic location (optional)
+            - summaries (str): Raw summaries to be processed
+    
+    Returns:
+        str: Formatted prompt for the AI summarizer
+    """
+    curr_type = kwargs.get("type", "issue").strip()
+    issue_tag = kwargs.get("issue_tag", "general concern").strip()
+    contents = kwargs.get("summaries", "").strip()
+
+    
+    # Define the expected output schema
+    output_schema = {
+        "summary": "concise description of the main concerns (max 30 words)",
+        "title": "title of the feed (max 10 words)",
+        "severity": "low | medium | high | no_severity",
+        "confidence": "low | medium | high",
+    }
+    
+    prompt = f"""You are an intelligent social media and user post analyst specializing in categorizing and summarizing community reports.
+
+TASK CONTEXT:
+You have received multiple user posts of type "{curr_type}" with category "{issue_tag}". Your task is to analyze these individual summaries and create a comprehensive, actionable overview.
+
+INPUT CONTENTS:
+{contents}
+
+ANALYSIS REQUIREMENTS:
+1. **Content Analysis**: Read all contents and identify common themes, patterns, and concerns
+2. **Categorization**: Confirm or refine the category based on actual content
+
+3. **Severity Assessment**: Rate the overall severity based on:
+   - Number of reports
+   - Potential impact on community
+   - Urgency of response needed
+   - Safety implications
+
+SUMMARY GUIDELINES:
+- Maximum 50 words for the main summary
+- Use clear, professional language
+- Group similar concerns together
+- Avoid repetition of identical points
+- Focus on actionable insights
+
+SEVERITY RATING CRITERIA:
+- **high**: Immediate safety risk, widespread impact, urgent action required
+- **medium**: Moderate impact, timely response needed, affects multiple people
+- **low**: Minor issue, routine response adequate, limited impact
+- **no_severity**: Informational only, no action required
+
+OUTPUT REQUIREMENTS:
+Return ONLY a valid JSON object matching this exact schema:
+
+```json
+{output_schema}
+```
+
+IMPORTANT: 
+- Ensure all JSON syntax is correct
+- Base severity rating on objective criteria, not just volume of reports
+- Set confidence level based on clarity and consistency of the input data
+"""
+
+    return prompt
+
+
+def create_summarizer_prompt_using_external_sources(kwargs):
     """
     Generate a structured prompt for summarizing user posts about issues or events.
     
@@ -193,7 +267,7 @@ def summarizer_prompt(kwargs):
     issue_tag = kwargs.get("issue_tag", "general concern").strip()
     location = kwargs.get("location", "").strip()
     summaries = kwargs.get("summaries", "").strip()
-    time_from = kwargs.get("time_from", datetime.now())
+    time_from = kwargs.get("time_from", datetime.now().strftime("%d/%m/%Y"))
     
     # Validate required inputs
     if not summaries:
@@ -204,8 +278,6 @@ def summarizer_prompt(kwargs):
         "summary": "concise description of the main concerns (max 30 words)",
         "title": "title of the feed (max 10 words)",
         "external_references": [ {'link' : 'relevant_link_1', 'title' : 'title of the link', 'thumbnail' : 'thumbnail of the link' }, {'link' : 'relevant_link_2', 'title' : 'title of the link', 'thumbnail' : 'thumbnail of the link' } ],
-        "severity": "low | medium | high | no_severity",
-        "confidence": "low | medium | high",
     }
     
     # Build location instruction
@@ -235,11 +307,6 @@ ANALYSIS REQUIREMENTS:
    - Do not include placeholder, broken, redirect-only, or inaccessible links.
    - Prefer trusted sources (e.g. news outlets, official sites).
 
-4. **Severity Assessment**: Rate the overall severity based on:
-   - Number of reports
-   - Potential impact on community
-   - Urgency of response needed
-   - Safety implications
 
 SUMMARY GUIDELINES:
 - Maximum 50 words for the main summary
@@ -248,12 +315,6 @@ SUMMARY GUIDELINES:
 - Avoid repetition of identical points
 - Focus on actionable insights
 - {location_instruction}
-
-SEVERITY RATING CRITERIA:
-- **high**: Immediate safety risk, widespread impact, urgent action required
-- **medium**: Moderate impact, timely response needed, affects multiple people
-- **low**: Minor issue, routine response adequate, limited impact
-- **no_severity**: Informational only, no action required
 
 OUTPUT REQUIREMENTS:
 Return ONLY a valid JSON object matching this exact schema:
@@ -265,8 +326,6 @@ Return ONLY a valid JSON object matching this exact schema:
 IMPORTANT: 
 - Ensure all JSON syntax is correct
 - Include actual web search results in the references.articles array
-- Base severity rating on objective criteria, not just volume of reports
-- Set confidence level based on clarity and consistency of the input data
 """
 
     return prompt
