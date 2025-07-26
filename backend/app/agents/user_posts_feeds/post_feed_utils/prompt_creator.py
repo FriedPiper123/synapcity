@@ -1,12 +1,9 @@
 import json
 from datetime import datetime
-<<<<<<< HEAD
 from typing import Dict, Any, List
-=======
 from pathlib import Path
 from google.genai import types
 
->>>>>>> d5332e8 (model type chnaged to lite for some functions)
 
 
 def create_analysis_prompt(kwargs) -> str:

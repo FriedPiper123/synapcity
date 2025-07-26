@@ -7,7 +7,6 @@ from .post_feed_utils.prompt_creator import (
     create_summarizer_prompt_using_external_sources, 
     create_route_prompt,
     create_location_prediction_prompt,
-    create_route_prompt, 
     create_image_content_analysis_prompt)
 from .constants import GEMINI_API_KEY
 import re
