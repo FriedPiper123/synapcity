@@ -126,12 +126,12 @@ GET /api/v1/location/location-posts?latitude=12.9716&longitude=77.5946&radius_km
 ```typescript
 // Fetch area insights
 const response = await apiFetch(
-  `http://192.168.1.5:8000/api/v1/insights/area-insights?latitude=${latitude}&longitude=${longitude}`
+  `http://0.0.0.0:8000/api/v1/insights/area-insights?latitude=${latitude}&longitude=${longitude}`
 );
 
 // Fetch location-based posts
 const response = await apiFetch(
-  `http://192.168.1.5:8000/api/v1/location/location-posts?latitude=${latitude}&longitude=${longitude}&radius_km=5.0`
+  `http://0.0.0.0:8000/api/v1/location/location-posts?latitude=${latitude}&longitude=${longitude}&radius_km=5.0`
 );
 ```
 

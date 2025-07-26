@@ -4,6 +4,8 @@ from datetime import datetime, timezone, timedelta
 import random
 import math
 from collections import defaultdict
+import json
+from fastapi.responses import JSONResponse
 
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
@@ -243,4 +245,16 @@ async def get_area_insights(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating area insights: {str(e)}"
         ) 
+
+@router.get("/area-analysis-response", response_class=JSONResponse)
+async def get_area_analysis_response():
+    """
+    Returns the static area analysis response from the JSON file.
+    """
+    try:
+        with open(os.path.join(os.path.dirname(__file__), '../../../area_analysis_response.json'), 'r') as f:
+            data = json.load(f)
+        return JSONResponse(content=data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
 
