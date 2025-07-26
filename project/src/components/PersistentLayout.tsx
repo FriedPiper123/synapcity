@@ -1,6 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Map, MessageSquare, Plus, User, TrendingUp, Settings, Users, Calendar } from 'lucide-react';
+import { MobileHeader } from './MobileHeader';
+import { Sidebar } from './Sidebar';
 
 interface PersistentLayoutProps {
   children: ReactNode;
@@ -27,6 +29,8 @@ const sidebarItems = [
 export const PersistentLayout = ({ children }: PersistentLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState('dashboard');
 
   const getActiveTab = () => {
     const currentPath = location.pathname;
@@ -46,6 +50,19 @@ export const PersistentLayout = ({ children }: PersistentLayoutProps) => {
 
   const handleSidebarClick = (path: string) => {
     navigate(path);
+    setMobileSidebarOpen(false); // Close mobile sidebar when navigating
+  };
+
+  const handleMenuToggle = () => {
+    setMobileSidebarOpen(!mobileSidebarOpen);
+  };
+
+  const handleQuickPost = () => {
+    navigate('/create');
+  };
+
+  const handleProfileToggle = () => {
+    navigate('/profile');
   };
 
   return (
@@ -110,8 +127,40 @@ export const PersistentLayout = ({ children }: PersistentLayoutProps) => {
 
       {/* Mobile Layout */}
       <div className="lg:hidden">
+        {/* Mobile Header */}
+        <MobileHeader
+          onMenuToggle={handleMenuToggle}
+          onQuickPost={handleQuickPost}
+          onProfileToggle={handleProfileToggle}
+        />
+
+        {/* Mobile Sidebar Overlay */}
+        {mobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
+        {/* Mobile Sidebar */}
+        <div className={`fixed top-0 left-0 h-full w-80 bg-white shadow-lg border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <Sidebar 
+            activeTab={getActiveSidebarTab()} 
+            setActiveTab={(tab) => {
+              setActiveSidebarTab(tab);
+              const item = sidebarItems.find(item => item.id === tab);
+              if (item) {
+                handleSidebarClick(item.path);
+              }
+            }}
+            mobile={true}
+          />
+        </div>
+
         {/* Main Content */}
-        <main className="pb-20">
+        <main className="pt-16 pb-20">
           {children}
         </main>
 
