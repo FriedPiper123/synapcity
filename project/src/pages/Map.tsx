@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GoogleMap, Marker, Circle, useJsApiLoader, Polyline, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, Circle, useJsApiLoader, Polyline, InfoWindow, Polygon } from '@react-google-maps/api';
 import { apiFetch } from '../lib/api';
 import { useLocation } from '../contexts/LocationContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +45,10 @@ import {
   ExternalLink,
   Star,
   Target,
-  PlayCircle
+  PlayCircle,
+  Layers,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 // Types for Google Maps API Response
@@ -152,6 +155,36 @@ type MapDataItem = {
   category: string;
 };
 
+// New types for heatmap data
+type HeatmapPolygon = {
+  postId: string;
+  coordinates: Array<{ lat: number; lng: number }>;
+  severity: 'high' | 'medium' | 'low';
+  category: string;
+  title: string;
+};
+
+type HeatmapData = {
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+  radius_km: number;
+  total_posts: number;
+  issue_polygons: {
+    high: HeatmapPolygon[];
+    medium: HeatmapPolygon[];
+    low: HeatmapPolygon[];
+  };
+  markers: MapDataItem[];
+  stats: {
+    issues: number;
+    events: number;
+    resolved: number;
+    other: number;
+  };
+};
+
 // Location presets
 const LOCATION_PRESETS = [
   { name: 'Current Location', latitude: 28.6139, longitude: 77.2090 },
@@ -230,6 +263,12 @@ export default function MapPage() {
   const [endLocation, setEndLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
   const [showRouteLabels, setShowRouteLabels] = useState<{[key: number]: boolean}>({});
   
+  // New heatmap state
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapError, setHeatmapError] = useState<string | null>(null);
+
   const { selectedLocation, currentLocation, getCurrentLocation, isLoading: locationLoading } = useLocation();
 
   // Refs for input focus
@@ -630,6 +669,147 @@ export default function MapPage() {
     setShowRouteLabels({});
   };
 
+  const fetchHeatmapData = async () => {
+    if (!currentLocation) {
+      setHeatmapError('Current location not available');
+      return;
+    }
+
+    setHeatmapLoading(true);
+    setHeatmapError(null);
+    
+    try {
+      const response = await apiFetch(
+        `http://0.0.0.0:8000/api/v1/insights/heatmap-data?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=3.0`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Transform coordinates for Google Maps
+        const transformedData = {
+          ...data,
+          issue_polygons: {
+            high: data.issue_polygons.high.map((polygon: any) => ({
+              ...polygon,
+              coordinates: polygon.coordinates.map((coord: [number, number]) => ({
+                lat: coord[0],
+                lng: coord[1]
+              }))
+            })),
+            medium: data.issue_polygons.medium.map((polygon: any) => ({
+              ...polygon,
+              coordinates: polygon.coordinates.map((coord: [number, number]) => ({
+                lat: coord[0],
+                lng: coord[1]
+              }))
+            })),
+            low: data.issue_polygons.low.map((polygon: any) => ({
+              ...polygon,
+              coordinates: polygon.coordinates.map((coord: [number, number]) => ({
+                lat: coord[0],
+                lng: coord[1]
+              }))
+            }))
+          }
+        };
+        
+        setHeatmapData(transformedData);
+      } else {
+        const errorData = await response.json();
+        setHeatmapError(errorData.detail || 'Failed to fetch heatmap data');
+      }
+    } catch (error) {
+      console.error('Error fetching heatmap data:', error);
+      setHeatmapError('Failed to fetch heatmap data');
+    } finally {
+      setHeatmapLoading(false);
+    }
+  };
+
+  const toggleHeatmap = async () => {
+    if (!showHeatmap && !heatmapData) {
+      await fetchHeatmapData();
+    }
+    setShowHeatmap(!showHeatmap);
+  };
+
+  // Get polygon colors based on severity
+  const getPolygonOptions = (severity: 'high' | 'medium' | 'low') => {
+    const severityOptions = {
+      high: {
+        fillColor: '#dc2626',
+        fillOpacity: 0.4,
+        strokeColor: '#b91c1c',
+        strokeWeight: 2,
+        strokeOpacity: 0.8
+      },
+      medium: {
+        fillColor: '#ea580c',
+        fillOpacity: 0.35,
+        strokeColor: '#c2410c',
+        strokeWeight: 2,
+        strokeOpacity: 0.7
+      },
+      low: {
+        fillColor: '#facc15',
+        fillOpacity: 0.3,
+        strokeColor: '#eab308',
+        strokeWeight: 1,
+        strokeOpacity: 0.6
+      }
+    };
+    return severityOptions[severity];
+  };
+
+  // Get marker icon based on post type
+  const getHeatmapMarkerIcon = (type: string) => {
+    switch (type) {
+      case 'event':
+        return {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="14" cy="14" r="12" fill="#3b82f6" stroke="white" stroke-width="3"/>
+              <path d="M14 8V14L18 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="14" cy="14" r="2" fill="white"/>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 14),
+        };
+      case 'issue':
+        return {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" fill="white" stroke="#dc2626" stroke-width="2"/>
+              <path d="M12 8V12M12 16H12.01" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(24, 24),
+        };
+      case 'resolved':
+        return {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" fill="white" stroke="#22c55e" stroke-width="2"/>
+              <path d="M9 12L11 14L15 10" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(24, 24),
+        };
+      default:
+        return {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" fill="white" stroke="#6b7280" stroke-width="2"/>
+              <circle cx="12" cy="12" r="3" fill="#6b7280"/>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(24, 24),
+        };
+    }
+  };
+
 
   useEffect(() => {
     fetchPosts();
@@ -642,6 +822,13 @@ export default function MapPage() {
       setMapZoom(13);
     }
   }, [currentLocation, routeResults]);
+
+  // Auto-fetch heatmap data when current location changes and heatmap is enabled
+  useEffect(() => {
+    if (currentLocation && showHeatmap) {
+      fetchHeatmapData();
+    }
+  }, [currentLocation, showHeatmap]);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -682,19 +869,23 @@ export default function MapPage() {
     setLoading(false);
   };
 
-  const filteredData = posts.filter(item => 
+  const filteredData = (showHeatmap && heatmapData ? heatmapData.markers : posts).filter(item => 
     selectedFilter === 'all' || item.type === selectedFilter
   );
 
   // Calculate summary statistics
+  const dataToAnalyze = showHeatmap && heatmapData ? heatmapData.markers : filteredData;
   const summaryStats = {
-    total: filteredData.length,
-    issues: filteredData.filter(item => item.type === 'issue').length,
-    events: filteredData.filter(item => item.type === 'event').length,
-    resolved: filteredData.filter(item => item.type === 'resolved').length,
-    highPriority: filteredData.filter(item => item.type === 'issue' && item.severity === 'high').length,
-    avgRadius: filteredData.length > 0 ? Math.round(filteredData.reduce((sum, item) => sum + item.radius, 0) / filteredData.length) : 0,
-    coverageArea: filteredData.length > 0 ? Math.round(filteredData.reduce((sum, item) => sum + (Math.PI * item.radius * item.radius), 0) / 1000000) : 0,
+    total: dataToAnalyze.length,
+    issues: dataToAnalyze.filter(item => item.type === 'issue').length,
+    events: dataToAnalyze.filter(item => item.type === 'event').length,
+    resolved: dataToAnalyze.filter(item => item.type === 'resolved').length,
+    highPriority: dataToAnalyze.filter(item => item.type === 'issue' && item.severity === 'high').length,
+    avgRadius: dataToAnalyze.length > 0 && 'radius' in dataToAnalyze[0] ? 
+      Math.round(dataToAnalyze.reduce((sum, item) => sum + (('radius' in item) ? item.radius : 1000), 0) / dataToAnalyze.length) : 1000,
+    coverageArea: dataToAnalyze.length > 0 && 'radius' in dataToAnalyze[0] ? 
+      Math.round(dataToAnalyze.reduce((sum, item) => sum + (Math.PI * (('radius' in item) ? item.radius : 1000) * (('radius' in item) ? item.radius : 1000)), 0) / 1000000) : 
+      Math.round(dataToAnalyze.length * Math.PI * 1000 * 1000 / 1000000),
   };
 
   const getMarkerIcon = (type: string) => {
@@ -1010,8 +1201,8 @@ export default function MapPage() {
                       />
                     )}
 
-                    {/* Render markers */}
-                    {filteredData.map((item) => (
+                    {/* Render regular markers only when heatmap is off */}
+                    {!showHeatmap && filteredData.map((item) => (
                       <div key={item.id}>
                         <Marker
                           position={{ lat: item.latitude, lng: item.longitude }}
@@ -1111,6 +1302,77 @@ export default function MapPage() {
                         />
                       );
                     })}
+
+                    {/* Heatmap Layer Toggle */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-lg z-40">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={toggleHeatmap}
+                        className="flex items-center gap-1"
+                      >
+                        {showHeatmap ? (
+                          <>
+                            <EyeOff className="w-4 h-4 text-gray-600" />
+                            Hide Heatmap
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-4 h-4 text-gray-600" />
+                            Show Heatmap
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                                         {/* Issue Polygons */}
+                     {showHeatmap && heatmapData && heatmapData.issue_polygons && (selectedFilter === 'all' || selectedFilter === 'issue') && (
+                       <>
+                         {heatmapData.issue_polygons.high.map((polygon, index) => (
+                           <Polygon
+                             key={`high-issue-polygon-${index}`}
+                             paths={polygon.coordinates}
+                             options={{
+                               ...getPolygonOptions('high'),
+                               fillOpacity: 0.3,
+                             }}
+                           />
+                         ))}
+                         {heatmapData.issue_polygons.medium.map((polygon, index) => (
+                           <Polygon
+                             key={`medium-issue-polygon-${index}`}
+                             paths={polygon.coordinates}
+                             options={{
+                               ...getPolygonOptions('medium'),
+                               fillOpacity: 0.3,
+                             }}
+                           />
+                         ))}
+                         {heatmapData.issue_polygons.low.map((polygon, index) => (
+                           <Polygon
+                             key={`low-issue-polygon-${index}`}
+                             paths={polygon.coordinates}
+                             options={{
+                               ...getPolygonOptions('low'),
+                               fillOpacity: 0.3,
+                             }}
+                           />
+                         ))}
+                       </>
+                     )}
+
+                                         {/* Heatmap Markers */}
+                     {showHeatmap && heatmapData && filteredData.length > 0 && (
+                       filteredData.map((item) => (
+                         <Marker
+                           key={`heatmap-${item.id}`}
+                           position={{ lat: item.latitude, lng: item.longitude }}
+                           icon={getHeatmapMarkerIcon(item.type)}
+                           title={item.title}
+                           onClick={() => handleMarkerClick(item)}
+                         />
+                       ))
+                     )}
                   </GoogleMap>
                 </div>
               )}
@@ -1524,30 +1786,154 @@ export default function MapPage() {
                 className="cursor-pointer"
                 onClick={() => setSelectedFilter('all')}
               >
-                All ({posts.length})
+                All ({showHeatmap && heatmapData ? heatmapData.markers.length : posts.length})
               </Badge>
               <Badge
                 variant={selectedFilter === 'issue' ? 'default' : 'secondary'}
                 className="cursor-pointer"
                 onClick={() => setSelectedFilter('issue')}
               >
-                Issues ({posts.filter(item => item.type === 'issue').length})
+                Issues ({showHeatmap && heatmapData ? heatmapData.stats.issues : posts.filter(item => item.type === 'issue').length})
               </Badge>
               <Badge
                 variant={selectedFilter === 'event' ? 'default' : 'secondary'}
                 className="cursor-pointer"
                 onClick={() => setSelectedFilter('event')}
               >
-                Events ({posts.filter(item => item.type === 'event').length})
+                Events ({showHeatmap && heatmapData ? heatmapData.stats.events : posts.filter(item => item.type === 'event').length})
               </Badge>
               <Badge
                 variant={selectedFilter === 'resolved' ? 'default' : 'secondary'}
                 className="cursor-pointer"
                 onClick={() => setSelectedFilter('resolved')}
               >
-                Resolved ({posts.filter(item => item.type === 'resolved').length})
+                Resolved ({showHeatmap && heatmapData ? heatmapData.stats.resolved : posts.filter(item => item.type === 'resolved').length})
               </Badge>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Heatmap Controls */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="w-5 h-5" />
+              Heatmap Controls
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={toggleHeatmap}
+                  disabled={heatmapLoading || !currentLocation}
+                  variant={showHeatmap ? "default" : "outline"}
+                  size="sm"
+                >
+                  {heatmapLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : showHeatmap ? (
+                    <>
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      Hide Heatmap
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Show Heatmap
+                    </>
+                  )}
+                </Button>
+                
+                {showHeatmap && heatmapData && (
+                  <Button
+                    onClick={fetchHeatmapData}
+                    disabled={heatmapLoading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Activity className="w-4 h-4 mr-2" />
+                    Refresh
+                  </Button>
+                )}
+              </div>
+              
+              {currentLocation && (
+                <Badge variant="outline" className="text-xs">
+                  3km radius
+                </Badge>
+              )}
+            </div>
+
+            {!currentLocation && (
+              <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Current location required for heatmap</span>
+                </div>
+              </div>
+            )}
+
+            {heatmapError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{heatmapError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Heatmap Statistics */}
+            {showHeatmap && heatmapData && (
+              <div className="space-y-3">
+                <div className="text-sm font-medium text-gray-700">Heatmap Statistics</div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center p-2 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="text-lg font-semibold text-red-600">{heatmapData.stats.issues}</div>
+                    <div className="text-xs text-red-500">Issues</div>
+                  </div>
+                  <div className="text-center p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-lg font-semibold text-blue-600">{heatmapData.stats.events}</div>
+                    <div className="text-xs text-blue-500">Events</div>
+                  </div>
+                  <div className="text-center p-2 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="text-lg font-semibold text-green-600">{heatmapData.stats.resolved}</div>
+                    <div className="text-xs text-green-500">Resolved</div>
+                  </div>
+                  <div className="text-center p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="text-lg font-semibold text-gray-600">{heatmapData.stats.other}</div>
+                    <div className="text-xs text-gray-500">Other</div>
+                  </div>
+                </div>
+
+                {/* Severity Legend */}
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-gray-700">Issue Severity Legend</div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-4 h-4 bg-red-600 rounded opacity-40"></div>
+                      <span>High Severity ({heatmapData.issue_polygons.high.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-4 h-4 bg-orange-600 rounded opacity-35"></div>
+                      <span>Medium Severity ({heatmapData.issue_polygons.medium.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-4 h-4 bg-yellow-500 rounded opacity-30"></div>
+                      <span>Low Severity ({heatmapData.issue_polygons.low.length})</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-500">
+                  Showing {heatmapData.total_posts} posts within {heatmapData.radius_km}km radius
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
