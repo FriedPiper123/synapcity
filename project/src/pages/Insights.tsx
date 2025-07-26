@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Users, Activity, BarChart3, MapPin, Target, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,12 +19,38 @@ import { useLocation } from '../contexts/LocationContext';
 
 export default function InsightsPage() {
   const { selectedLocation } = useLocation();
-  const { data, loading, error, analyzeArea } = useInsights();
+  const { data, loading, error, analyzeArea, isAutoFetching, lastUpdated } = useInsights();
   const [expandedIncidents, setExpandedIncidents] = useState<Set<string>>(new Set());
   const [timeRange, setTimeRange] = useState('24hours');
+  const [, forceUpdate] = useState({});
+
+  // Force component re-render every minute to update "last updated" display
+  useEffect(() => {
+    if (lastUpdated) {
+      const interval = setInterval(() => {
+        forceUpdate({});
+      }, 60000); // Update every minute
+      
+      return () => clearInterval(interval);
+    }
+  }, [lastUpdated]);
 
   const handleAnalyze = async () => {
     await analyzeArea(timeRange);
+  };
+
+  const formatLastUpdated = (date: Date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Just now';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleTimeString();
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -98,10 +124,25 @@ export default function InsightsPage() {
     <div className="p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Area Analysis</h2>
-          <p className="text-gray-600">
-            Comprehensive analysis and insights for the selected area
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Area Analysis</h2>
+              <p className="text-gray-600">
+                Comprehensive analysis and insights for the selected area
+              </p>
+              {lastUpdated && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Last updated: {formatLastUpdated(lastUpdated)}
+                </p>
+              )}
+            </div>
+            {isAutoFetching && (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Updating...</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Time Range Input and Analyze Button */}

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiFetch } from '../lib/api';
 import { useLocation } from './LocationContext';
 
@@ -14,6 +14,8 @@ interface InsightsContextType {
   error: string | null;
   analyzeArea: (timeRange: string) => Promise<void>;
   clearData: () => void;
+  isAutoFetching: boolean;
+  lastUpdated: Date | null;
 }
 
 const InsightsContext = createContext<InsightsContextType | undefined>(undefined);
@@ -23,15 +25,23 @@ export const InsightsProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAutoFetching, setIsAutoFetching] = useState(false);
+  const [currentTimeRange, setCurrentTimeRange] = useState('24hours');
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const analyzeArea = async (timeRange: string) => {
+  const fetchAreaData = async (timeRange: string, isBackground: boolean = false) => {
     if (!selectedLocation) {
-      setError('No location selected. Please pin a location first.');
-      return;
+      if (!isBackground) {
+        setError('No location selected. Please pin a location first.');
+      }
+      return false;
     }
 
-    setLoading(true);
-    setError(null);
+    if (!isBackground) {
+      setLoading(true);
+      setError(null);
+    }
     
     try {
       const payload = {
@@ -56,25 +66,108 @@ export const InsightsProvider = ({ children }: { children: ReactNode }) => {
       
       const json = await response.json();
       setData(json);
+      setCurrentTimeRange(timeRange);
+      setLastUpdated(new Date());
+      
+      if (!isBackground) {
+        setError(null);
+      }
+      
+      return true;
       
     } catch (err: any) {
-      setError(err.message || 'Unknown error');
+      if (!isBackground) {
+        setError(err.message || 'Unknown error');
+      } else {
+        console.warn('Background fetch failed:', err.message);
+      }
+      return false;
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
+  };
+
+  const analyzeArea = async (timeRange: string) => {
+    const success = await fetchAreaData(timeRange, false);
+    if (success) {
+      startAutoFetch();
+    }
+  };
+
+  const startAutoFetch = () => {
+    // Clear existing interval
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+
+    // Start new interval for background fetching every 12 seconds
+    const newIntervalId = setInterval(async () => {
+      if (selectedLocation && currentTimeRange) {
+        setIsAutoFetching(true);
+        await fetchAreaData(currentTimeRange, true);
+        setIsAutoFetching(false);
+      }
+    }, 12000); // 12 seconds
+
+    setIntervalId(newIntervalId);
+  };
+
+  const stopAutoFetch = () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      setIntervalId(null);
+    }
+    setIsAutoFetching(false);
   };
 
   const clearData = () => {
     setData(null);
     setError(null);
+    setCurrentTimeRange('24hours');
+    setLastUpdated(null);
+    stopAutoFetch();
   };
+
+  // Auto-fetch data when location is available (background fetch on website visit)
+  useEffect(() => {
+    if (selectedLocation && !data) {
+      // Initial background fetch when visiting the website
+      const performInitialFetch = async () => {
+        console.log('Performing initial background fetch...');
+        const success = await fetchAreaData(currentTimeRange, true);
+        if (success) {
+          startAutoFetch();
+        }
+      };
+      
+      performInitialFetch();
+    }
+  }, [selectedLocation]);
+
+  // Clear data and stop auto-fetch when location changes
+  useEffect(() => {
+    return () => {
+      stopAutoFetch();
+    };
+  }, [selectedLocation]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      stopAutoFetch();
+    };
+  }, []);
 
   const value: InsightsContextType = {
     data,
     loading,
     error,
     analyzeArea,
-    clearData
+    clearData,
+    isAutoFetching,
+    lastUpdated
   };
 
   return (

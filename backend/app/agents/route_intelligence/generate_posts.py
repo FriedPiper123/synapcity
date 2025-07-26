@@ -152,17 +152,19 @@ def generate_traffic_posts():
     
     return posts
 
-# Generate the posts
-traffic_incident_posts = generate_traffic_posts()
 
-# Display the posts in the required format
-all_post = traffic_incident_posts
+if __name__ == '__main__':
+    # Generate the posts
+    traffic_incident_posts = generate_traffic_posts()
 
-# Print sample output
-for i, post in enumerate(all_post, 1):
-    print(f"Post {i}:")
-    print(f"Content: {post['content']}")
-    print(f"Location: {post['neighborhood']}")
-    print(f"Time: {post['createdAt']}")
-    print(f"Category: {post['category']}")
-    print("---")
+    # Display the posts in the required format
+    all_post = traffic_incident_posts
+
+    # Print sample output
+    for i, post in enumerate(all_post, 1):
+        print(f"Post {i}:")
+        print(f"Content: {post['content']}")
+        print(f"Location: {post['neighborhood']}")
+        print(f"Time: {post['createdAt']}")
+        print(f"Category: {post['category']}")
+        print("---")

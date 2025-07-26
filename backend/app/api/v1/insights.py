@@ -18,6 +18,8 @@ import os
 from ...core.config import settings
 from ...agents.user_posts_feeds.post_feed_utils.post_feed_utils import get_all_posts_summary
 
+from fastapi_utilities import ttl_lru_cache
+
 router = APIRouter()
 
 # Request model for the new endpoint
@@ -215,6 +217,7 @@ def generate_fallback_insights(latitude: float, longitude: float) -> Dict:
         "postTypes": {}
     }
 
+@ttl_lru_cache(ttl=5, max_size=528)
 @router.get("/area-insights", response_model=Area)
 async def get_area_insights(
     latitude: float = Query(..., description="Latitude of the area"),
@@ -267,6 +270,7 @@ async def get_area_analysis_response():
         raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
 
 
+@ttl_lru_cache(ttl=60, max_size=528)
 @router.post("/analyze-area", response_class=JSONResponse)
 async def analyze_area_with_webhook(request: AreaAnalysisRequest):
     """
@@ -306,17 +310,20 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
         # Call external webhook API
         webhook_url = "https://donothackmyapi.duckdns.org/webhook/analyze-area"
         
+        import httpx
+
         try:
-            response = requests.post(
-                webhook_url,
-                json=payload,
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'SynapCityApp/1.0'
-                },
-                timeout=None
-            )
-            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    webhook_url,
+                    json=payload,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'SynapCityApp/1.0'
+                    },
+                    timeout=None
+                )
+
             if response.status_code == 200:
                 # Return the response from the external API
                 return JSONResponse(content=response.json())
