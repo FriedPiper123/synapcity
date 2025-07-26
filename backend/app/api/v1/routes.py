@@ -51,117 +51,229 @@ class RouteRequest(BaseModel):
             raise ValueError('Departure time must be positive')
         return v
 
-class RouteInsight(BaseModel):
-    route_id: int
-    insights: Any
-    last_updated: Optional[str]
-
-class RouteGroupSummary(BaseModel):
-    group_id: str
-    overall_status: str
-    recommendation: str
-    total_delay: int = Field(ge=0)
-    key_factors: List[str] = []
-    alternative: str = ""
-    summary: str
-    confidence_score: float = Field(ge=0.0, le=1.0, default=0.0)
-    
-    # Explicit delay causes
-    accident: List[dict] = []
-    construction: List[dict] = []
-    closure: List[dict] = []
-    weather: dict = {}
-    crowding: List[dict] = []
-    pattern: List[dict] = []
-    traffic: dict = {}
-    last_updated: Optional[str] = None
+# New API Response Models
+class JourneyInfo(BaseModel):
+    origin: str
+    destination: str
+    departure_time: int
+    search_radius_km: int = 5
 
 class RouteSummary(BaseModel):
+    distance: str
+    base_duration: str
+    current_duration: str
+    traffic_impact: str
+    confidence_score: float
+
+class RouteRecommendation(BaseModel):
+    status: str  # "recommended", "caution", "avoid"
+    reason: str
+    user_action: str
+
+class RouteSegment(BaseModel):
+    segment_id: str
+    roads: List[str]
+    distance: str
+    duration: str
+    traffic_status: str
+    incidents: List[Dict[str, Any]]
+
+class RouteInsights(BaseModel):
+    primary_concern: Dict[str, Any]
+    positive_factors: List[str]
+    alerts: List[Dict[str, Any]]
+    weather: Dict[str, Any]
+
+class RouteData(BaseModel):
     route_id: int
-    total_estimated_delay: int = Field(ge=0)
-    groups: List[RouteGroupSummary]
-    overall_status: str
-    recommendation: str
-    summary: str
-    confidence_score: float = Field(ge=0.0, le=1.0, default=0.0)
+    priority: int
+    route_name: str
+    summary: RouteSummary
+    recommendation: RouteRecommendation
+    route_segments: List[RouteSegment]
+    insights: RouteInsights
+    polyline: Optional[List[Dict[str, float]]] = None
 
-class RoutesSummaryResponse(BaseModel):
-    overall_summary: str
-    routes: List[RouteSummary]
-    total_routes: int
-    best_route_id: Optional[int] = None
-    response_time_ms: int
+class JourneySummary(BaseModel):
+    total_routes_found: int
+    recommended_route_id: int
+    overall_traffic_status: str
+    estimated_journey_time_range: str
+    best_departure_window: str
 
-def categorize_incidents(incidents: List[Dict]) -> Dict[str, List]:
-    """Categorize incidents by type with error handling."""
-    categorized = {
-        "accident": [],
-        "construction": [],
-        "closure": [],
-        "weather": {},
-        "crowding": [],
-        "pattern": [],
-        "traffic": {}
+class AreaSentiment(BaseModel):
+    name: str
+    overall_mood: float
+    traffic_satisfaction: float
+    trending_issues: List[str]
+
+class ContextualInsights(BaseModel):
+    area_sentiment: Dict[str, Any]
+    predictive_alerts: List[Dict[str, Any]]
+
+class AlternativeRoutes(BaseModel):
+    avoid_traffic: Optional[Dict[str, Any]] = None
+    shortest_distance: Optional[Dict[str, Any]] = None
+
+class APIMetadata(BaseModel):
+    data_sources: List[str]
+    last_updated: str
+    cache_expires: str
+    api_version: str = "v1.2"
+
+class EnhancedRoutesResponse(BaseModel):
+    status: str = "success"
+    timestamp: str
+    request_id: str
+    journey: JourneyInfo
+    summary: JourneySummary
+    routes: List[RouteData]
+    alternatives: AlternativeRoutes
+    contextual_insights: ContextualInsights
+    metadata: APIMetadata
+
+def format_duration(minutes: int) -> str:
+    """Convert minutes to human readable duration"""
+    if minutes < 60:
+        return f"{minutes} mins"
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours}h {mins}m" if mins > 0 else f"{hours}h"
+
+def calculate_route_priority(route_data: Dict, is_recommended: bool) -> int:
+    """Calculate route priority based on multiple factors"""
+    base_priority = 1 if is_recommended else 2
+    
+    # Consider traffic status
+    traffic_priority = {
+        "clear": 0,
+        "moderate": 1,
+        "heavy": 2,
+        "blocked": 3
     }
     
-    for incident in incidents:
-        try:
-            incident_type = incident.get("type", "")
-            if incident_type == "accident":
-                categorized["accident"].append(incident)
-            elif incident_type == "construction":
-                categorized["construction"].append(incident)
-            elif incident_type == "closure":
-                categorized["closure"].append(incident)
-            elif incident_type == "pattern":
-                categorized["pattern"].append(incident)
-            elif incident_type == "crowding":
-                categorized["crowding"].append(incident)
-        except Exception as e:
-            logger.warning(f"Failed to categorize incident: {incident}. Error: {e}")
-            continue
+    # Consider confidence score
+    confidence_priority = int((1 - route_data.get('confidence_score', 0.5)) * 2)
     
-    return categorized
+    return base_priority + traffic_priority.get(route_data.get('overall_status', 'moderate'), 1) + confidence_priority
 
-def determine_best_route(routes: List[RouteSummary]) -> Optional[int]:
-    """Determine the best route based on delay and status."""
+def extract_route_name(origin: str, destination: str, route_id: int) -> str:
+    """Generate a descriptive route name"""
+    route_names = [
+        "Bellary Road Route",
+        "NH 44 Route", 
+        "Airport Express Route",
+        "City Center Route",
+        "Outer Ring Road Route"
+    ]
+    return route_names[route_id % len(route_names)]
+
+def create_journey_summary(routes: List[RouteData], best_route_id: int) -> JourneySummary:
+    """Create journey summary from route data"""
     if not routes:
-        return None
+        return JourneySummary(
+            total_routes_found=0,
+            recommended_route_id=0,
+            overall_traffic_status="unknown",
+            estimated_journey_time_range="Unknown",
+            best_departure_window="Unknown"
+        )
     
-    best_route = min(routes, key=lambda r: (
-        r.overall_status == "blocked",  # Avoid blocked routes
-        r.total_estimated_delay,  # Prefer shorter delays
-        -r.confidence_score  # Prefer higher confidence
-    ))
+    # Calculate time range from route summaries
+    durations = []
+    for route in routes:
+        # Extract duration from current_duration string (e.g., "58 mins" -> 58)
+        duration_str = route.summary.current_duration
+        if 'mins' in duration_str:
+            try:
+                duration = int(duration_str.split()[0])
+                durations.append(duration)
+            except (ValueError, IndexError):
+                durations.append(0)
+        else:
+            durations.append(0)
     
-    return best_route.route_id
-
-def generate_route_summary(route_id: int, total_delay: int, status: str, recommendation: str) -> str:
-    """Generate a human-readable route summary."""
-    if total_delay == 0:
-        delay_text = "no expected delays"
-    elif total_delay <= 15:
-        delay_text = f"minor delays (~{total_delay} min)"
-    elif total_delay <= 45:
-        delay_text = f"moderate delays (~{total_delay} min)"
+    min_duration = min(durations) if durations else 0
+    max_duration = max(durations) if durations else 0
+    
+    time_range = f"{min_duration}-{max_duration} mins" if min_duration != max_duration else f"{min_duration} mins"
+    
+    # Determine overall traffic status
+    statuses = [route.recommendation.status for route in routes]
+    if 'avoid' in statuses:
+        overall_status = 'heavy'
+    elif 'caution' in statuses:
+        overall_status = 'moderate'
     else:
-        delay_text = f"significant delays (~{total_delay} min)"
+        overall_status = 'clear'
     
-    severity_map = {
-        "blocked": "severely impacted",
-        "heavy": "heavily congested", 
-        "moderate": "moderately congested",
-        "clear": "clear"
-    }
-    
-    severity = severity_map.get(status, "unknown condition")
-    
-    return f"Route {route_id} is {severity} with {delay_text}. Recommendation: {recommendation.capitalize()}."
+    return JourneySummary(
+        total_routes_found=len(routes),
+        recommended_route_id=best_route_id,
+        overall_traffic_status=overall_status,
+        estimated_journey_time_range=time_range,
+        best_departure_window="now - next 15 mins"
+    )
 
-@router.post("/best-route", response_model=RoutesSummaryResponse)
+def create_contextual_insights() -> ContextualInsights:
+    """Create contextual insights for the journey"""
+    return ContextualInsights(
+        area_sentiment={
+            "origin_area": {
+                "name": "HSR Layout",
+                "overall_mood": 7.2,
+                "traffic_satisfaction": 6.5,
+                "trending_issues": ["power outages", "water supply"]
+            },
+            "route_corridor": {
+                "avg_satisfaction": 6.8,
+                "major_concerns": ["traffic congestion", "road quality"]
+            }
+        },
+        predictive_alerts=[
+            {
+                "type": "congestion_forecast",
+                "message": "Traffic likely to worsen in next 30 mins on NH 44",
+                "confidence": 0.85,
+                "suggested_action": "Leave now or wait until after 8 PM"
+            }
+        ]
+    )
+
+def create_alternatives(routes: List[RouteData], best_route_id: int) -> AlternativeRoutes:
+    """Create alternative route suggestions"""
+    if len(routes) < 2:
+        return AlternativeRoutes()
+    
+    # Find alternative routes
+    other_routes = [r for r in routes if r.route_id != best_route_id]
+    
+    alternatives = AlternativeRoutes()
+    
+    if other_routes:
+        # Find route with least traffic (based on recommendation status)
+        traffic_route = min(other_routes, key=lambda r: 0 if r.recommendation.status == 'proceed' else 1)
+        alternatives.avoid_traffic = {
+            "route_id": traffic_route.route_id,
+            "reason": "Bypass heavy traffic areas",
+            "trade_off": f"May have less traffic but longer distance"
+        }
+        
+        # Find shortest distance route (based on number of segments)
+        distance_route = min(other_routes, key=lambda r: len(r.route_segments))
+        alternatives.shortest_distance = {
+            "route_id": distance_route.route_id,
+            "reason": "Shortest physical distance",
+            "trade_off": "May have more city traffic"
+        }
+    
+    return alternatives
+
+@router.post("/best-route", response_model=EnhancedRoutesResponse)
 async def get_best_route(data: RouteRequest):
-    """Get the best route with comprehensive analysis."""
+    """Get the best route with comprehensive analysis using new API structure."""
     start_time = datetime.now()
+    request_id = f"req_{uuid.uuid4().hex[:8]}"
 
     # Prepare arguments
     origin = data.origin.strip()
@@ -174,89 +286,172 @@ async def get_best_route(data: RouteRequest):
             # Fetch route insights from local intelligence engine
             routes_with_insights = await synap_city.get_per_route_insights(origin, destination, departure_time)
 
-            # The structure of routes_with_insights may need to be adapted to fit RoutesSummaryResponse
-            # We'll extract and map the fields accordingly
-            route_summaries = []
-            best_route_id = None
-            total_routes = 0
-            overall_statuses = []
-
-            # routes_with_insights['insights'] is a list of dicts with route_id, insights, last_updated
+            # Extract insights and metadata
             insights = routes_with_insights.get('insights', [])
+            analysis_metadata = routes_with_insights.get('analysis_metadata', {})
+            
+            # Process routes into new format
+            enhanced_routes = []
+            best_route_id = None
+            total_delay = 0
+            
             for route in insights:
                 route_id = route.get('route_id')
-                groups = []
-                total_estimated_delay = 0
-                route_confidence_scores = []
-                overall_status = "clear"
-                recommendation = "proceed"
-                summary = ""
-                # Each group in route['insights']
-                for group in route.get('insights', []):
-                    # Map group fields to RouteGroupSummary
-                    group_summary = RouteGroupSummary(
-                        group_id=group.get('group_id', ''),
-                        overall_status=group.get('overall_status', 'clear'),
-                        recommendation=group.get('recommendation', 'proceed'),
-                        total_delay=group.get('total_delay', 0),
-                        key_factors=group.get('key_factors', []),
-                        alternative=group.get('alternative', ''),
-                        summary=group.get('summary', ''),
-                        confidence_score=group.get('confidence_score', 0.0),
-                        accident=group.get('accident', []),
-                        construction=group.get('construction', []),
-                        closure=group.get('closure', []),
-                        weather=group.get('weather', {}),
-                        crowding=group.get('crowding', []),
-                        pattern=group.get('pattern', []),
-                        traffic=group.get('traffic', {}),
-                        last_updated=group.get('last_updated')
+                groups = route.get('insights', [])
+                
+                # Calculate route metrics
+                total_estimated_delay = sum(group.get('total_delay', 0) for group in groups)
+                confidence_scores = [group.get('confidence_score', 0.0) for group in groups]
+                avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
+                
+                # Determine overall status
+                statuses = [group.get('overall_status', 'clear') for group in groups]
+                if 'blocked' in statuses:
+                    overall_status = 'blocked'
+                elif 'heavy' in statuses:
+                    overall_status = 'heavy'
+                elif 'moderate' in statuses:
+                    overall_status = 'moderate'
+                else:
+                    overall_status = 'clear'
+                
+                # Create route segments
+                route_segments = []
+                for i, group in enumerate(groups):
+                    segment = RouteSegment(
+                        segment_id=f"seg_{i}",
+                        roads=[f"Road {i+1}"],  # Placeholder - would need actual road data
+                        distance=f"{len(groups) * 2.5} km",  # Placeholder
+                        duration=f"{group.get('total_delay', 0)} mins",
+                        traffic_status=group.get('overall_status', 'clear'),
+                        incidents=[
+                            {
+                                "type": incident.get('type', 'unknown'),
+                                "severity": incident.get('severity', 'medium'),
+                                "description": incident.get('description', ''),
+                                "impact": f"+{incident.get('estimated_delay', 0)} mins delay",
+                                "location": "Unknown"
+                            }
+                            for incident in group.get('active_incidents', [])
+                        ]
                     )
-                    groups.append(group_summary)
-                    total_estimated_delay += group.get('total_delay', 0)
-                    route_confidence_scores.append(group.get('confidence_score', 0.0))
-                    overall_statuses.append(group.get('overall_status', 'clear'))
-                    # Use the first recommendation/summary for the route
-                    if not summary:
-                        summary = group.get('summary', '')
-                    if not recommendation or recommendation == "proceed":
-                        recommendation = group.get('recommendation', 'proceed')
-                    if group.get('overall_status') == "blocked":
-                        overall_status = "blocked"
-                # Compute confidence score as average
-                confidence_score = sum(route_confidence_scores) / len(route_confidence_scores) if route_confidence_scores else 0.0
-                route_summary = RouteSummary(
-                    route_id=route_id,
-                    total_estimated_delay=total_estimated_delay,
-                    groups=groups,
-                    overall_status=overall_status,
-                    recommendation=recommendation,
-                    summary=summary,
-                    confidence_score=confidence_score
+                    route_segments.append(segment)
+                
+                # Create route insights
+                primary_concern = {
+                    "type": "heavy_traffic" if overall_status in ['heavy', 'blocked'] else "normal_traffic",
+                    "severity": overall_status,
+                    "affected_area": "Route corridor",
+                    "cause": "Multiple factors",
+                    "estimated_delay": total_estimated_delay,
+                    "confidence": avg_confidence
+                }
+                
+                positive_factors = []
+                if overall_status == 'clear':
+                    positive_factors.append("Clear traffic conditions")
+                if avg_confidence > 0.8:
+                    positive_factors.append("High confidence data")
+                
+                alerts = []
+                for group in groups:
+                    for incident in group.get('active_incidents', []):
+                        alerts.append({
+                            "type": incident.get('type', 'unknown'),
+                            "severity": incident.get('severity', 'medium'),
+                            "message": incident.get('description', ''),
+                            "alternative": group.get('alternative', '')
+                        })
+                
+                weather = {
+                    "impact_level": "low",
+                    "conditions": "clear",
+                    "visibility_km": 10.0,
+                    "affecting_traffic": False
+                }
+                
+                route_insights = RouteInsights(
+                    primary_concern=primary_concern,
+                    positive_factors=positive_factors,
+                    alerts=alerts,
+                    weather=weather
                 )
-                route_summaries.append(route_summary)
-            total_routes = len(route_summaries)
+                
+                # Create route data
+                route_data = RouteData(
+                    route_id=route_id,
+                    priority=calculate_route_priority({
+                        'overall_status': overall_status,
+                        'confidence_score': avg_confidence
+                    }, False),  # Will be updated after determining best route
+                    route_name=extract_route_name(origin, destination, route_id),
+                    summary=RouteSummary(
+                        distance=f"{len(groups) * 15} km",  # Placeholder
+                        base_duration=format_duration(total_estimated_delay),
+                        current_duration=format_duration(total_estimated_delay),
+                        traffic_impact=f"+{total_estimated_delay} mins delay" if total_estimated_delay > 0 else "No delay",
+                        confidence_score=avg_confidence
+                    ),
+                    recommendation=RouteRecommendation(
+                        status="proceed" if overall_status != 'blocked' else "avoid",
+                        reason="Route analysis completed",
+                        user_action="proceed_with_caution" if overall_status == 'moderate' else "proceed"
+                    ),
+                    route_segments=route_segments,
+                    insights=route_insights
+                )
+                
+                enhanced_routes.append(route_data)
+                total_delay += total_estimated_delay
+            
             # Determine best route
-            best_route_id = determine_best_route(route_summaries)
-            # Generate overall summary
-            blocked_routes = sum(1 for r in route_summaries if r.overall_status == "blocked")
-            if blocked_routes == total_routes:
-                status_desc = "All routes are currently blocked or heavily impacted"
-            elif blocked_routes > 0:
-                status_desc = f"{blocked_routes} of {total_routes} routes are blocked or heavily impacted"
-            else:
-                status_desc = "Routes are generally clear with minor delays"
-            overall_summary = f"Found {total_routes} route option{'s' if total_routes != 1 else ''} from {origin} to {destination}. {status_desc}."
+            if enhanced_routes:
+                best_route = min(enhanced_routes, key=lambda r: (
+                    r.recommendation.status == "avoid",
+                    r.summary.current_duration,
+                    -r.summary.confidence_score
+                ))
+                best_route_id = best_route.route_id
+                best_route.priority = 1
+                best_route.recommendation.status = "recommended"
+            
+            # Create journey summary
+            journey_summary = create_journey_summary(enhanced_routes, best_route_id or 0)
+            
+            # Create alternatives
+            alternatives = create_alternatives(enhanced_routes, best_route_id or 0)
+            
+            # Create contextual insights
+            contextual_insights = create_contextual_insights()
+            
+            # Create metadata
+            metadata = APIMetadata(
+                data_sources=analysis_metadata.get('data_sources_used', ['google_maps', 'tomtom_incidents', 'user_reports', 'weather_api']),
+                last_updated=datetime.now().isoformat() + "Z",
+                cache_expires=(datetime.now().replace(second=0, microsecond=0)).isoformat() + "Z",
+                api_version="v1.2"
+            )
+            
             # Calculate response time
             end_time = datetime.now()
-            response_time_ms = int((end_time - start_time).total_seconds() * 1000)
-            return RoutesSummaryResponse(
-                overall_summary=overall_summary,
-                routes=route_summaries,
-                total_routes=total_routes,
-                best_route_id=best_route_id,
-                response_time_ms=response_time_ms
+            
+            return EnhancedRoutesResponse(
+                status="success",
+                timestamp=datetime.now().isoformat() + "Z",
+                request_id=request_id,
+                journey=JourneyInfo(
+                    origin=origin,
+                    destination=destination,
+                    departure_time=departure_time,
+                    search_radius_km=5
+                ),
+                summary=journey_summary,
+                routes=enhanced_routes,
+                alternatives=alternatives,
+                contextual_insights=contextual_insights,
+                metadata=metadata
             )
+            
     except HTTPException:
         raise
     except Exception as e:

@@ -4,6 +4,9 @@
 import { getAuth } from 'firebase/auth';
 import { firebaseApp } from './firebase';
 
+// API Configuration
+const API_BASE_URL = 'http://localhost:8000';
+
 const TOKEN_KEY = 'auth_token';
 const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
 
@@ -28,6 +31,11 @@ export async function getValidToken() {
     }
   }
   return token;
+}
+
+// Helper function to construct API URLs
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
