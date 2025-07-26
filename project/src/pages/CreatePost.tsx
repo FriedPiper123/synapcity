@@ -249,7 +249,7 @@ export default function CreatePostPage() {
     }
 
     try {
-      const res = await apiFetch('http://0.0.0.0:8000/api/v1/posts/', {
+      const res = await apiFetch('http://0.0.0.0:8000/api/v1/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -258,6 +258,9 @@ export default function CreatePostPage() {
           category,
           location: { latitude: finalLatitude, longitude: finalLongitude },
           neighborhood: selectedLocation?.locationName || 'Current Location',
+          mediaUrl: null,
+          parentId: null,
+          geohash: null
         }),
       });
       

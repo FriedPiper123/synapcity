@@ -1,4 +1,4 @@
-import { User, Settings, Bell, Shield, HelpCircle, LogOut, LogIn } from 'lucide-react';
+import { User, Settings, Bell, Shield, HelpCircle, LogOut, LogIn, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,24 +114,48 @@ const ProfilePage = () => {
 
         {/* Authentication Section */}
         {isAnonymous ? (
-          <Card className="mb-6">
+          <Card className="mb-6 border-2 border-dashed border-blue-200 bg-blue-50/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-blue-800">
                 <LogIn className="w-5 h-5" />
-                Sign In
+                Welcome Back!
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">
-                Sign in with your Google account to access all features and save your preferences.
-              </p>
-              <Button 
-                onClick={handleSignIn}
-                className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
-              >
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign in with Google
-              </Button>
+              <div className="space-y-4">
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h4 className="font-semibold text-gray-800 mb-2">Sign in to unlock all features:</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      Save your posts and preferences
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      Get personalized community updates
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      Access your activity history
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      Connect with your neighborhood
+                    </li>
+                  </ul>
+                </div>
+                <Button 
+                  onClick={handleSignIn}
+                  className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white font-medium py-3"
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign in with Google
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+                <p className="text-xs text-gray-500 text-center">
+                  Your data is secure and we never share your personal information
+                </p>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -143,80 +167,107 @@ const ProfilePage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Button 
-                onClick={handleSignOut}
-                variant="outline"
-                className="w-full text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600 mb-4">
+                  Sign out to switch accounts or continue as an anonymous user.
+                </p>
+                <Button 
+                  onClick={handleSignOut}
+                  variant="outline"
+                  className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Settings Options */}
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <Settings className="w-5 h-5 text-gray-600" />
-                  <span className="font-medium">Settings</span>
+        {/* Settings Options - Only show for authenticated users */}
+        {!isAnonymous && (
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Settings className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">Settings</span>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <span className="sr-only">Open settings</span>
+                    →
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm">
-                  <span className="sr-only">Open settings</span>
-                  →
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <Bell className="w-5 h-5 text-gray-600" />
-                  <span className="font-medium">Notifications</span>
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">Notifications</span>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <span className="sr-only">Open notifications</span>
+                    →
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm">
-                  <span className="sr-only">Open notifications</span>
-                  →
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-gray-600" />
-                  <span className="font-medium">Privacy</span>
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">Privacy</span>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <span className="sr-only">Open privacy settings</span>
+                    →
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm">
-                  <span className="sr-only">Open privacy settings</span>
-                  →
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-                <div className="flex items-center gap-3">
-                  <HelpCircle className="w-5 h-5 text-gray-600" />
-                  <span className="font-medium">Help & Support</span>
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">Help & Support</span>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <span className="sr-only">Open help</span>
+                    →
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm">
-                  <span className="sr-only">Open help</span>
-                  →
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Anonymous User Quick Actions */}
+        {isAnonymous && (
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">Help & Support</span>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    <span className="sr-only">Open help</span>
+                    →
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
