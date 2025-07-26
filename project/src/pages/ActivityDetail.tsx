@@ -5,13 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch } from '../lib/api';
+import { useLocation as useLocationContext } from '../contexts/LocationContext';
+import { useActivities } from '../contexts/ActivitiesContext';
+import { useLocationName } from '../hooks/useLocationName';
 
 interface ActivityDetail {
   id: string;
   type: 'issue' | 'event' | 'resolved' | 'post';
   title: string;
   content: string;
+  enhanced_summary?: string;
   severity: 'high' | 'medium' | 'low';
   category: string;
   counts: number;
@@ -45,6 +50,9 @@ export default function ActivityDetail() {
   const { activityId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { selectedLocation } = useLocationContext();
+  const { getLocationName } = useLocationName();
+  const { getActivityById } = useActivities();
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,40 +62,112 @@ export default function ActivityDetail() {
     if (location.state?.activity) {
       setActivity(location.state.activity);
       setLoading(false);
+      // Still fetch enhanced data in background
+      fetchEnhancedActivityData(location.state.activity);
     } else if (activityId) {
-      // If no state data, fetch from API
-      fetchActivityDetails();
+      // Try to get activity from context first
+      const contextActivity = getActivityById(activityId);
+      if (contextActivity) {
+        setActivity(contextActivity);
+        setLoading(false);
+        // Fetch enhanced data in background
+        fetchEnhancedActivityData(contextActivity);
+      } else {
+        // If not found in context, fetch from API
+        fetchActivityDetails();
+      }
     } else {
       setError('No activity data available');
       setLoading(false);
     }
-  }, [activityId, location.state]);
+  }, [activityId, location.state, getActivityById]);
+
+  const fetchEnhancedActivityData = async (baseActivity: ActivityDetail) => {
+    if (!activityId) return;
+    
+    try {
+      // Prepare the request payload with activity data from recent activities
+      const requestPayload = {
+        type: baseActivity.type,
+        category: baseActivity.category,
+        neighborhood: baseActivity.location ? `${baseActivity.location.latitude},${baseActivity.location.longitude}` : "",
+        summary: baseActivity.content
+      };
+
+      const response = await apiFetch(
+        `http://0.0.0.0:8000/api/v1/dashboard/activity/enhance`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestPayload)
+        }
+      );
+      
+      if (response.ok) {
+        const enhancedData = await response.json();
+        setActivity({
+          ...baseActivity,
+          ...enhancedData
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching enhanced activity data:', err);
+      // Don't show error to user as we have base activity data
+    }
+  };
 
   const fetchActivityDetails = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // For now, we'll use the activity data from the dashboard
-      // In a real implementation, you'd fetch from a specific activity endpoint
-      const response = await apiFetch(`http://0.0.0.0:8000/api/v1/dashboard/recent-activities`);
+      if (!selectedLocation) {
+        throw new Error('Location not available');
+      }
+
+      // Try to get activity from context first
+      const contextActivity = getActivityById(activityId || '');
+      if (contextActivity) {
+        setActivity(contextActivity);
+        setLoading(false);
+        await fetchEnhancedActivityData(contextActivity);
+        return;
+      }
+
+      // If not found in context, fetch from API
+      const activitiesResponse = await apiFetch(
+        `http://0.0.0.0:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+      );
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity details');
+      if (!activitiesResponse.ok) {
+        throw new Error('Failed to fetch recent activities');
       }
       
-      const data = await response.json();
-      // Since backend doesn't provide IDs, we'll find by index or title
-      const foundActivity = data.activities?.find((a: any, index: number) => {
-        const activityIndex = activityId?.replace('activity-', '');
-        return index.toString() === activityIndex || a.title === activityId;
-      });
+      const activitiesData = await activitiesResponse.json();
+      const activities = activitiesData.activities || [];
       
-      if (foundActivity) {
-        setActivity(foundActivity);
-      } else {
+      // Find the specific activity by ID or title
+      let targetActivity = null;
+      for (let i = 0; i < activities.length; i++) {
+        const activity = activities[i];
+        if (activity.title === activityId || 
+            `activity-${i}` === activityId ||
+            i.toString() === activityId?.replace('activity-', '')) {
+          targetActivity = activity;
+          break;
+        }
+      }
+      
+      if (!targetActivity) {
         throw new Error('Activity not found');
       }
+
+      setActivity(targetActivity);
+      
+      // Now enhance the activity with external links
+      await fetchEnhancedActivityData(targetActivity);
 
     } catch (err) {
       console.error('Error fetching activity details:', err);
@@ -168,17 +248,106 @@ export default function ActivityDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Loading activity details...</span>
+  // Loading Skeleton Component
+  const LoadingSkeleton = () => (
+    <div className="p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex items-center space-x-4">
+          <Skeleton className="h-10 w-20" />
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-32" />
           </div>
         </div>
+
+        {/* Activity Details Card Skeleton */}
+        <Card className="shadow-sm border border-gray-100">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <Skeleton className="w-12 h-12 rounded-full" />
+                <div>
+                  <Skeleton className="h-6 w-64 mb-2" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              </div>
+              <div className="flex flex-col items-end space-y-2">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-4 w-full mb-2" />
+            <Skeleton className="h-4 w-3/4 mb-2" />
+            <Skeleton className="h-4 w-1/2" />
+            <div className="flex items-center space-x-2 mt-4">
+              <Skeleton className="w-4 h-4" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* External References Skeleton */}
+        <Card className="shadow-sm border border-gray-100">
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex space-x-3 overflow-x-auto pb-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex-shrink-0 w-64 p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <Skeleton className="w-8 h-8 rounded flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <Skeleton className="h-4 w-32 mb-1" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Related Posts Skeleton */}
+        <Card className="shadow-sm border border-gray-100">
+          <CardHeader>
+            <Skeleton className="h-6 w-32 mb-2" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <Skeleton className="w-8 h-8 rounded-full" />
+                    <div>
+                      <Skeleton className="h-4 w-24 mb-1" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-16" />
+                </div>
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-3/4 mb-2" />
+                <Skeleton className="h-4 w-1/2" />
+                <div className="flex items-center space-x-4 pt-3 border-t border-gray-100">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
-    );
+    </div>
+  );
+
+  if (loading) {
+    return <LoadingSkeleton />;
   }
 
   if (error || !activity) {
@@ -251,14 +420,14 @@ export default function ActivityDetail() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-700 leading-relaxed text-base">
-              {activity.content}
+              {activity.enhanced_summary || activity.content}
             </p>
             
             {activity.location && (
               <div className="flex items-center space-x-2 mt-4 text-sm text-gray-600">
                 <MapPin className="w-4 h-4" />
                 <span>
-                  {activity.location.latitude?.toFixed(4)}, {activity.location.longitude?.toFixed(4)}
+                  {getLocationName(activity.location.latitude, activity.location.longitude)}
                 </span>
               </div>
             )}
@@ -273,32 +442,52 @@ export default function ActivityDetail() {
                 External References
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {activity.external_references.map((ref, index) => (
-                <a
-                  key={index}
-                  href={ref.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                >
-                  {ref.thumbnail ? (
-                    <img src={ref.thumbnail} alt="" className="w-8 h-8 rounded object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
-                      <ExternalLink className="w-4 h-4 text-blue-600" />
+            <CardContent>
+              <div className="flex space-x-3 overflow-x-auto pb-2">
+                {activity.external_references.map((ref, index) => (
+                  <a
+                    key={index}
+                    href={ref.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 w-64 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      {ref.thumbnail ? (
+                        <img 
+                          src={ref.thumbnail} 
+                          alt="" 
+                          className="w-8 h-8 rounded object-cover flex-shrink-0"
+                          onError={(e) => {
+                            // Fallback to link icon if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              const fallbackIcon = document.createElement('div');
+                              fallbackIcon.className = 'w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0';
+                              fallbackIcon.innerHTML = '<svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>';
+                              parent.appendChild(fallbackIcon);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                          <ExternalLink className="w-4 h-4 text-blue-600" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-blue-600 font-medium text-sm truncate">
+                          {ref.title}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {ref.link}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-blue-600 font-medium truncate">
-                      {ref.title}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {ref.link}
-                    </p>
-                  </div>
-                </a>
-              ))}
+                  </a>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

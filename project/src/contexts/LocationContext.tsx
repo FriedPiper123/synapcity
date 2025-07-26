@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface LocationData {
   latitude: number;
   longitude: number;
-  locationName?: string;
+  locationName: string;
 }
 
 interface LocationContextType {
@@ -15,6 +15,7 @@ interface LocationContextType {
   getCurrentLocation: () => Promise<void>;
   pinCurrentLocation: () => Promise<void>;
   clearSelectedLocation: () => void;
+  getLocationDisplayName: (location?: LocationData) => string;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -87,11 +88,8 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   };
 
   const setSelectedLocation = async (location: LocationData) => {
-    // Fetch location name if not present
-    let locationName = location.locationName;
-    if (!locationName) {
-      locationName = await fetchLocationName(location.latitude, location.longitude);
-    }
+    // Always fetch location name to ensure it's up to date
+    const locationName = await fetchLocationName(location.latitude, location.longitude);
     setSelectedLocationState({ ...location, locationName });
   };
 
@@ -99,22 +97,63 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     setSelectedLocationState(currentLocation);
   };
 
+  const getLocationDisplayName = (location?: LocationData): string => {
+    const targetLocation = location || selectedLocation || currentLocation;
+    if (!targetLocation) {
+      return 'Current Location';
+    }
+    return targetLocation.locationName;
+  };
+
   // Helper to fetch location name from Google Maps Geocoding API
-  const fetchLocationName = async (latitude: number, longitude: number) => {
+  const fetchLocationName = async (latitude: number, longitude: number): Promise<string> => {
     try {
+      const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        console.warn('Google Maps API key not found, using coordinates as fallback');
+        return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      }
+
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
       );
+      
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'OK' && data.results && data.results.length > 0) {
-          return data.results[0].formatted_address;
+          // Try to get a more specific location name
+          const result = data.results[0];
+          const addressComponents = result.address_components;
+          
+          // Look for locality (city) and administrative_area_level_1 (state/province)
+          let city = '';
+          let state = '';
+          
+          for (const component of addressComponents) {
+            if (component.types.includes('locality')) {
+              city = component.long_name;
+            }
+            if (component.types.includes('administrative_area_level_1')) {
+              state = component.long_name;
+            }
+          }
+          
+          // Return city, state if available, otherwise use formatted address
+          if (city && state) {
+            return `${city}, ${state}`;
+          } else if (city) {
+            return city;
+          } else {
+            return result.formatted_address;
+          }
         }
       }
     } catch (e) {
-      // Ignore errors, fallback to coordinates
+      console.error('Error fetching location name:', e);
     }
-    return undefined;
+    
+    // Fallback to coordinates if API fails
+    return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
   };
 
   // Get initial location on app start
@@ -131,6 +170,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     getCurrentLocation,
     pinCurrentLocation,
     clearSelectedLocation,
+    getLocationDisplayName,
   };
 
   return (
