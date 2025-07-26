@@ -25,14 +25,19 @@ def get_dashboard_stats(latitude: float, longitude: float, radius_km: float = 5.
         # Get geohash cells for the area
         geohash_cells = get_geohash_cells_for_radius(latitude, longitude, radius_km)
         
-        # Collect posts from all relevant geohash cells
-        all_posts = []
+        # Collect posts from all relevant geohash cells (use dict to avoid duplicates)
+        posts_dict = {}
         for geohash_cell in geohash_cells:
             posts_query = db.collection('posts').where('geohash', '==', geohash_cell)
             
             for doc in posts_query.stream():
+                post_id = doc.id
+                # Skip if we've already processed this post
+                if post_id in posts_dict:
+                    continue
+                    
                 post_data = doc.to_dict()
-                post_data['postId'] = doc.id
+                post_data['postId'] = post_id
                 
                 # Check if post is within the exact radius
                 if 'location' in post_data and hasattr(post_data['location'], 'latitude'):
@@ -41,11 +46,12 @@ def get_dashboard_stats(latitude: float, longitude: float, radius_km: float = 5.
                     
                     distance = calculate_distance(latitude, longitude, post_lat, post_lon)
                     if distance <= radius_km:
-                        all_posts.append({
+                        posts_dict[post_id] = {
                             **post_data,
                             'distance': distance
-                        })
+                        }
         
+        all_posts = list(posts_dict.values())
         return calculate_stats(all_posts)
         
     except Exception as e:
@@ -142,14 +148,19 @@ def get_recent_activities(latitude: float, longitude: float, radius_km: float = 
         # Get geohash cells for the area
         geohash_cells = get_geohash_cells_for_radius(latitude, longitude, radius_km)
         
-        # Collect recent posts from all relevant geohash cells
-        all_posts = []
+        # Collect recent posts from all relevant geohash cells (use dict to avoid duplicates)
+        posts_dict = {}
         for geohash_cell in geohash_cells:
             posts_query = db.collection('posts').where('geohash', '==', geohash_cell)
             
             for doc in posts_query.stream():
+                post_id = doc.id
+                # Skip if we've already processed this post
+                if post_id in posts_dict:
+                    continue
+                    
                 post_data = doc.to_dict()
-                post_data['postId'] = doc.id
+                post_data['postId'] = post_id
                 
                 # Check if post is within the exact radius
                 if 'location' in post_data and hasattr(post_data['location'], 'latitude'):
@@ -158,11 +169,12 @@ def get_recent_activities(latitude: float, longitude: float, radius_km: float = 
                     
                     distance = calculate_distance(latitude, longitude, post_lat, post_lon)
                     if distance <= radius_km:
-                        all_posts.append({
+                        posts_dict[post_id] = {
                             **post_data,
                             'distance': distance
-                        })
+                        }
         
+        all_posts = list(posts_dict.values())
         return format_recent_activities(all_posts, limit)
         
     except Exception as e:
@@ -185,6 +197,9 @@ def format_recent_activities(posts: List[Dict], limit: int) -> List[Dict]:
     feed_insights = get_all_posts_summary(gemini_model=GeminiAgent, all_posts=posts)
 
     for feed in (feed_insights or {}).values():
+        from pprint import pprint
+        pprint(feed)
+        
         related_feeds = feed.get('related_feeds', [])
         # Fetch posts whose id comes in related_feeds
         related_posts = []
