@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LocationProvider } from "./contexts/LocationContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ActivitiesProvider } from "./contexts/ActivitiesContext";
 import { PersistentLayout } from "./components/PersistentLayout";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -27,7 +28,8 @@ const App = () => (
       <AuthProvider>
         <BrowserRouter>
           <LocationProvider>
-            <PersistentLayout>
+            <ActivitiesProvider>
+              <PersistentLayout>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/map" element={<MapPage />} />
@@ -42,6 +44,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </PersistentLayout>
+            </ActivitiesProvider>
           </LocationProvider>
         </BrowserRouter>
       </AuthProvider>

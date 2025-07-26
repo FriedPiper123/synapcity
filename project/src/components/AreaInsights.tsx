@@ -44,66 +44,82 @@ export const AreaInsights: React.FC<AreaInsightsProps> = ({
       setLoading(true);
       setError(null);
       
-      const response = await apiFetch(
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 10000); // 10 second timeout
+      });
+      
+      // Create the API call promise
+      const apiPromise = apiFetch(
         `http://0.0.0.0:8000/api/v1/insights/area-insights?latitude=${latitude}&longitude=${longitude}`
       );
       
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Validate and transform the data
-        const transformedData: AreaInsights = {
-          overallSentiment: data.overallSentiment || 'neutral',
-          powerOutageFrequency: data.powerOutageFrequency || 'low',
-          crimeTrend: data.crimeTrend || [
-            { period: 'Jan', value: 5, change: 0 },
-            { period: 'Feb', value: 7, change: 40 },
-            { period: 'Mar', value: 4, change: -43 },
-            { period: 'Apr', value: 6, change: 50 },
-            { period: 'May', value: 8, change: 33 },
-            { period: 'Jun', value: 5, change: -38 }
-          ],
-          waterShortageTrend: data.waterShortageTrend || [
-            { period: 'Jan', value: 2, change: 0 },
-            { period: 'Feb', value: 3, change: 50 },
-            { period: 'Mar', value: 1, change: -67 },
-            { period: 'Apr', value: 4, change: 300 },
-            { period: 'May', value: 2, change: -50 },
-            { period: 'Jun', value: 3, change: 50 }
-          ],
-          lastUpdated: data.lastUpdated || new Date().toISOString()
-        };
-        
-        setInsights(transformedData);
-      } else {
-        throw new Error('Failed to fetch area insights');
-      }
-    } catch (error) {
-      console.error('Error fetching area insights:', error);
-      setError('Failed to load area insights. Please try again.');
+      // Race between timeout and API call
+      const response = await Promise.race([apiPromise, timeoutPromise]) as Response;
       
-      // Set fallback data
-      setInsights({
-        overallSentiment: 'neutral',
-        powerOutageFrequency: 'low',
-        crimeTrend: [
-          { period: 'Jan', value: 5, change: 0 },
-          { period: 'Feb', value: 7, change: 40 },
-          { period: 'Mar', value: 4, change: -43 },
-          { period: 'Apr', value: 6, change: 50 },
-          { period: 'May', value: 8, change: 33 },
-          { period: 'Jun', value: 5, change: -38 }
-        ],
-        waterShortageTrend: [
-          { period: 'Jan', value: 2, change: 0 },
-          { period: 'Feb', value: 3, change: 50 },
-          { period: 'Mar', value: 1, change: -67 },
-          { period: 'Apr', value: 4, change: 300 },
-          { period: 'May', value: 2, change: -50 },
-          { period: 'Jun', value: 3, change: 50 }
-        ],
-        lastUpdated: new Date().toISOString()
-      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Validate the data structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data format received from server');
+      }
+      
+      // Check if required fields exist and have the correct structure
+      if (!data.crimeTrend || !Array.isArray(data.crimeTrend.daily)) {
+        throw new Error('Missing or invalid crime trend data');
+      }
+      
+      if (!data.waterShortageTrend || !Array.isArray(data.waterShortageTrend.daily)) {
+        throw new Error('Missing or invalid water shortage trend data');
+      }
+      
+      if (typeof data.powerOutageFrequency !== 'number') {
+        throw new Error('Missing or invalid power outage frequency data');
+      }
+      
+      if (typeof data.overallSentiment !== 'number') {
+        throw new Error('Missing or invalid sentiment data');
+      }
+      
+      // Ensure arrays have minimum length
+      if (data.crimeTrend.daily.length === 0) {
+        data.crimeTrend.daily = [0, 0, 0, 0, 0, 0, 0];
+      }
+      
+      if (data.waterShortageTrend.daily.length === 0) {
+        data.waterShortageTrend.daily = [0, 0, 0, 0, 0, 0, 0];
+      }
+      
+      // Transform data to match our interface
+      const transformedData: AreaInsights = {
+        overallSentiment: data.overallSentiment >= 0.5 ? 'positive' : data.overallSentiment >= 0 ? 'neutral' : 'negative',
+        powerOutageFrequency: data.powerOutageFrequency <= 0.3 ? 'low' : data.powerOutageFrequency <= 0.6 ? 'medium' : 'high',
+        crimeTrend: data.crimeTrend.daily.map((value: number, index: number) => ({
+          period: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index] || `Day ${index + 1}`,
+          value: value,
+          change: 0 // We don't have change data in the API response
+        })),
+        waterShortageTrend: data.waterShortageTrend.daily.map((value: number, index: number) => ({
+          period: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index] || `Day ${index + 1}`,
+          value: value,
+          change: 0 // We don't have change data in the API response
+        })),
+        lastUpdated: data.lastUpdatedAt || new Date().toISOString()
+      };
+      
+      setInsights(transformedData);
+    } catch (err) {
+      console.error('Error fetching area insights:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      
+      // Don't show dummy data - just set insights to null
+      setInsights(null);
     } finally {
       setLoading(false);
     }
@@ -170,47 +186,35 @@ export const AreaInsights: React.FC<AreaInsightsProps> = ({
     );
   };
 
-  if (loading && !insights) {
+  if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading area insights...</p>
-        </div>
+      <div className="flex items-center justify-center py-4">
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+        <span className="text-sm text-gray-600">Loading insights...</span>
       </div>
     );
   }
 
   if (error && !insights) {
     return (
-      <div className="space-y-4">
-        <Card className="border-destructive/50 bg-destructive/10">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <h3 className="font-semibold text-destructive">Error Loading Insights</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-3">{error}</p>
-            <Button onClick={handleRetry} size="sm">
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center py-4">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="w-4 h-4 text-red-500" />
+          <span className="text-sm text-red-600 font-medium">Error Loading Insights</span>
+        </div>
+        <p className="text-xs text-gray-600 mb-3 text-center">{error}</p>
+        <Button onClick={handleRetry} size="sm" variant="outline">
+          Retry
+        </Button>
       </div>
     );
   }
 
   if (!insights) {
     return (
-      <div className="space-y-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center py-4">
-              <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No insights available for this area</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center py-4">
+        <Activity className="w-6 h-6 text-gray-400 mb-2" />
+        <p className="text-sm text-gray-600 text-center">No insights available</p>
       </div>
     );
   }

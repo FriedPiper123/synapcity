@@ -1,14 +1,19 @@
 
 import { useEffect, useState, useCallback } from 'react';
-import { MapPin, Users, MessageSquare, TrendingUp, AlertCircle, CheckCircle, RefreshCw, Calendar, Activity } from 'lucide-react';
+import { MapPin, Users, MessageSquare, TrendingUp, AlertCircle, CheckCircle, RefreshCw, Calendar, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch } from '../lib/api';
 import { useLocation } from '../contexts/LocationContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useActivities } from '../contexts/ActivitiesContext';
+import { useLocationName } from '../hooks/useLocationName';
 import { useNavigate } from 'react-router-dom';
+import { AreaInsights } from './AreaInsights';
 
 interface DashboardStats {
   activeIssues: number;
@@ -47,13 +52,16 @@ const extractUsernameFromToken = (token: string): string => {
 export const Dashboard = () => {
   const [username, setUsername] = useState('User');
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAreaInsights, setShowAreaInsights] = useState(false);
+  const [areaInsightsRefreshKey, setAreaInsightsRefreshKey] = useState(0);
   const { selectedLocation } = useLocation();
+  const { selectedLocationName } = useLocationName();
   const { user } = useAuth();
+  const { activities: recentActivities, loading: activitiesLoading, error: activitiesError, refreshActivities } = useActivities();
   const navigate = useNavigate();
 
   // Extract username from user data or token
@@ -74,34 +82,27 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (selectedLocation) {
-      fetchDashboardData();
+      fetchStats();
     }
   }, [selectedLocation]);
 
-  const fetchDashboardData = async () => {
+  const fetchStats = async () => {
     if (!selectedLocation) return;
 
     try {
-      setLoading(true);
-      setError(null);
+      setStatsLoading(true);
+      setStatsError(null);
 
-      // Fetch stats and activities in parallel
-      const statsPromise = apiFetch(
+      const response = await apiFetch(
         `http://0.0.0.0:8000/api/v1/dashboard/stats?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
-      
-      const activitiesPromise = apiFetch(
-        `http://0.0.0.0:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0&limit=10`
-      );
 
-      const [statsResponse, activitiesResponse] = await Promise.all([statsPromise, activitiesPromise]);
-
-      // Handle stats response
-      if (!statsResponse.ok) {
-        const errorText = await statsResponse.text();
-        throw new Error(`Stats API error (${statsResponse.status}): ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Stats API error (${response.status}): ${errorText}`);
       }
-      const statsData = await statsResponse.json();
+
+      const statsData = await response.json();
       
       // Validate stats data
       if (!statsData || typeof statsData !== 'object') {
@@ -118,24 +119,10 @@ export const Dashboard = () => {
       
       setStats(statsData);
 
-      // Handle activities response
-      if (!activitiesResponse.ok) {
-        const errorText = await activitiesResponse.text();
-        throw new Error(`Activities API error (${activitiesResponse.status}): ${errorText}`);
-      }
-      const activitiesData = await activitiesResponse.json();
-      
-      // Validate activities data
-      if (!activitiesData || !Array.isArray(activitiesData.activities)) {
-        throw new Error('Invalid activities data format received from server');
-      }
-      
-      setRecentActivities(activitiesData.activities || []);
-
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
+      console.error('Error fetching stats:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
+      setStatsError(errorMessage);
       
       // Set fallback data for network errors
       if (errorMessage.includes('Network') || errorMessage.includes('fetch') || errorMessage.includes('timeout') || errorMessage.includes('API error')) {
@@ -149,34 +136,30 @@ export const Dashboard = () => {
           postTypes: {},
           statusCounts: {}
         });
-        setRecentActivities([{
-          id: "fallback-1",
-          type: "issue",
-          title: "No recent activities available",
-          time: "Just now",
-          severity: "medium",
-          content: "Start posting to see activities here",
-          authorId: null,
-          upvotes: 0,
-          downvotes: 0,
-          commentCount: 0
-        }]);
-        setError(null); // Clear error when showing fallback data
+        setStatsError(null); // Clear error when showing fallback data
       }
     } finally {
-      setLoading(false);
+      setStatsLoading(false);
     }
   };
 
+
+
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
-    fetchDashboardData();
+    fetchStats();
+    refreshActivities();
   };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchDashboardData().finally(() => setRefreshing(false));
+    setAreaInsightsRefreshKey(k => k + 1); // force AreaInsights to refresh
+    Promise.all([fetchStats(), refreshActivities()]).finally(() => setRefreshing(false));
   }, []);
+
+  const toggleAreaInsights = () => {
+    setShowAreaInsights(!showAreaInsights);
+  };
 
   const getStatsDisplay = () => {
     if (!stats) return [];
@@ -214,13 +197,7 @@ export const Dashboard = () => {
   };
 
   const getLocationName = () => {
-    if (selectedLocation?.locationName) {
-      return selectedLocation.locationName;
-    }
-    if (selectedLocation) {
-      return `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`;
-    }
-    return 'Current Location';
+    return selectedLocationName;
   };
 
   const formatTime = (timeString: string) => {
@@ -265,7 +242,56 @@ export const Dashboard = () => {
     }
   };
 
-  if (error && !stats) {
+  // Skeleton components
+  const StatsSkeleton = () => (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="bg-white rounded-lg lg:rounded-xl p-4 lg:p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2 lg:mb-4">
+            <Skeleton className="w-10 h-10 lg:w-12 lg:h-12 rounded-lg" />
+            <Skeleton className="w-12 h-8 lg:w-16 lg:h-10" />
+          </div>
+          <Skeleton className="w-20 h-4 lg:w-24 lg:h-5" />
+        </div>
+      ))}
+    </div>
+  );
+
+  const ActivitiesSkeleton = () => (
+    <div className="space-y-3 lg:space-y-4">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="flex items-start space-x-3 lg:space-x-4 p-3 lg:p-4 rounded-lg">
+          <Skeleton className="w-8 h-8 lg:w-10 lg:h-10 rounded-full flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="w-3/4 h-4" />
+            <Skeleton className="w-1/2 h-3" />
+            <Skeleton className="w-full h-3" />
+            <Skeleton className="w-1/3 h-3" />
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <Skeleton className="w-16 h-5" />
+            <Skeleton className="w-12 h-5" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const WelcomeSkeleton = () => (
+    <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-xl lg:rounded-2xl p-4 lg:p-6 text-white">
+      <Skeleton className="w-48 h-6 lg:h-8 bg-white/20 mb-2" />
+      <Skeleton className="w-64 h-4 lg:h-5 bg-white/20 mb-3 lg:mb-4" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+        <Skeleton className="w-32 h-4 lg:h-5 bg-white/20" />
+        <Skeleton className="w-40 h-4 lg:h-5 bg-white/20" />
+      </div>
+    </div>
+  );
+
+  // Check if there are any critical errors
+  const hasCriticalError = (statsError && !stats) || (activitiesError && recentActivities.length === 0);
+
+  if (hasCriticalError) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="w-full max-w-md">
@@ -277,7 +303,7 @@ export const Dashboard = () => {
               Unable to load dashboard
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              {error}
+              {statsError || activitiesError}
             </p>
             <Button onClick={handleRetry} className="w-full">
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -294,33 +320,65 @@ export const Dashboard = () => {
   return (
     <div className="space-y-4 lg:space-y-6">
       {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-xl lg:rounded-2xl p-4 lg:p-6 text-white">
-        <h2 className="text-lg lg:text-2xl font-bold mb-2">Welcome back, {username}!</h2>
-        <p className="text-blue-100 text-sm lg:text-base mb-3 lg:mb-4">Your city is thriving with community engagement</p>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-          <div className="flex items-center space-x-2">
-            <MapPin className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm lg:text-base font-medium">{getLocationName()}</span>
+      {statsLoading ? (
+        <WelcomeSkeleton />
+      ) : (
+        <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-xl lg:rounded-2xl p-4 lg:p-6 text-white">
+          <h2 className="text-lg lg:text-2xl font-bold mb-2">Welcome back, {username}!</h2>
+          <p className="text-blue-100 text-sm lg:text-base mb-3 lg:mb-4">Your city is thriving with community engagement</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-2">
+              <MapPin className="w-4 h-4 lg:w-5 lg:h-5" />
+              <span className="text-sm lg:text-base font-medium">{getLocationName()}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
+              <span className="text-sm lg:text-base font-medium">
+                +{stats?.engagementPercentage || 0}% engagement
+              </span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm lg:text-base font-medium">
-              +{stats?.engagementPercentage || 0}% engagement
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading dashboard...</span>
         </div>
       )}
 
+      {/* Area Insights Quick Summary */}
+      {selectedLocation && (
+        <Card className="shadow-sm border border-gray-100">
+          <CardContent className="p-4">
+            <Collapsible open={showAreaInsights} onOpenChange={setShowAreaInsights}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-gray-800">Quick Summary</span>
+                  </div>
+                  {showAreaInsights ? (
+                    <ChevronUp className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-600" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-4">
+                <AreaInsights 
+                  latitude={selectedLocation.latitude} 
+                  longitude={selectedLocation.longitude} 
+                  refreshKey={areaInsightsRefreshKey}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+            {!showAreaInsights && (
+              <p className="text-gray-600 text-sm mt-2">
+                Click to view detailed area insights
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Grid */}
-      {!loading && (
+      {statsLoading ? (
+        <StatsSkeleton />
+      ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
           {statsDisplay.map((stat, index) => {
             const Icon = stat.icon;
@@ -360,11 +418,14 @@ export const Dashboard = () => {
         </CardHeader>
         <CardContent className="pt-0">
           <ScrollArea className="h-64">
-            {!loading && recentActivities.length > 0 ? (
+            {activitiesLoading ? (
+              <ActivitiesSkeleton />
+            ) : recentActivities.length > 0 ? (
               <div className="space-y-3 lg:space-y-4">
                 {recentActivities.map((activity, index) => {
                   const ActivityIcon = getActivityIcon(activity.type);
-                  const activityId = activity.id || `activity-${index}`;
+                  // Use index as the route param, not activity.id
+                  const activityId = `activity-${index}`;
                   return (
                     <div 
                       key={activityId} 
@@ -376,11 +437,11 @@ export const Dashboard = () => {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-gray-800 text-sm lg:text-base">{activity.title}</p>
-                        <p className="text-xs lg:text-sm text-gray-600 mb-1">{formatTime(activity.time)}</p>
+                        <p className="text-xs lg:text-sm text-gray-600 mb-1">{formatTime(new Date().toISOString())}</p>
                         <p className="text-xs text-gray-500 line-clamp-2">{activity.content}</p>
                         <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-gray-500">👍 {activity.upvotes}</span>
-                          <span className="text-xs text-gray-500">💬 {activity.commentCount}</span>
+                          <span className="text-xs text-gray-500">👍 {activity.counts || 0}</span>
+                          <span className="text-xs text-gray-500">💬 {activity.counts || 0}</span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -402,16 +463,11 @@ export const Dashboard = () => {
                   );
                 })}
               </div>
-            ) : !loading ? (
+            ) : (
               <div className="text-center py-8">
                 <div className="text-gray-400 mb-4">📭</div>
                 <p className="text-gray-600">No recent activities</p>
                 <p className="text-gray-500 text-sm">Start posting to see activities here</p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600">Loading activities...</span>
               </div>
             )}
           </ScrollArea>

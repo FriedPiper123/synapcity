@@ -11,7 +11,7 @@ from ...utils.geohash_utils import get_geohash_cells_for_radius, calculate_dista
 import requests
 import os
 from ...core.config import settings
-from ...agents.user_posts_feeds.post_feed_utils.post_feed_utils import get_all_posts_summary
+from ...agents.user_posts_feeds.post_feed_utils.post_feed_utils import get_all_posts_summary, get_summary_links
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
 
@@ -207,7 +207,7 @@ def format_recent_activities(posts: List[Dict], limit: int) -> List[Dict]:
             'counts': feed.get('posts_counts', 0),
             'location': feed.get('location', None),
             "related_posts" : related_posts,
-            "external_references" : feed.get('external_references', []),
+            "external_references" : feed.get('external_references', []) or [],
         }
         activities.append(data)
     return activities
@@ -298,13 +298,6 @@ async def get_recent_activities_endpoint(
         # from pprint import pprint
         # import json
         return {"activities": activities}
-
-        return {"activities": [
-            {"content":"Join us for a community cleanup event in [area name] on [date]. We'll provide all supplies. Let's make our neighborhood beautiful together!","type":"event","category":"community","location":{"latitude":12.9093255,"longitude":77.6529664},"neighborhood":"200, Sector 2, HSR Layout, Bengaluru, Karnataka 560102, India","mediaUrl":null,"parentId":null,"geohash":"tdr1rn","postId":"7e4b1d24-7e6f-43ab-8a8a-df956e3269f7","authorId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","author":{"userId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","username":"Ayush Bisht","profileImageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJ_cYHVsP2ENU4ZYb4TuvBlSPiOa63JoSG_0KQpN6aF8MYnaA=s96-c"},"upvotes":0,"downvotes":0,"upvotedBy":[],"downvotedBy":[],"commentCount":1,"createdAt":"2025-07-25T08:42:36.836572Z","status":"active"},
-            {"content":"Traffic congestion in hsr sector 1.","type":"issue","category":"transportation","location":{"latitude":12.9093255,"longitude":77.6529664},"neighborhood":"200, Sector 2, HSR Layout, Bengaluru, Karnataka 560102, India","mediaUrl":null,"parentId":null,"geohash":"tdr1rn","postId":"9bed07d8-70ea-4038-a439-8f24b21fe0df","authorId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","author":{"userId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","username":"Ayush Bisht","profileImageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJ_cYHVsP2ENU4ZYb4TuvBlSPiOa63JoSG_0KQpN6aF8MYnaA=s96-c"},"upvotes":0,"downvotes":0,"upvotedBy":[],"downvotedBy":[],"commentCount":0,"createdAt":"2025-07-25T08:33:19.361901Z","status":"active"},
-            {"content":"Join us for a community cleanup event in [area name] on [date]. We'll provide all supplies. Let's make our neighborhood beautiful together!","type":"event","category":"community","location":{"latitude":12.9093255,"longitude":77.6529664},"neighborhood":"200, Sector 2, HSR Layout, Bengaluru, Karnataka 560102, India","mediaUrl":null,"parentId":null,"geohash":"tdr1rn","postId":"7e4b1d24-7e6f-43ab-8a8a-df956e3269f7","authorId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","author":{"userId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","username":"Ayush Bisht","profileImageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJ_cYHVsP2ENU4ZYb4TuvBlSPiOa63JoSG_0KQpN6aF8MYnaA=s96-c"},"upvotes":0,"downvotes":0,"upvotedBy":[],"downvotedBy":[],"commentCount":1,"createdAt":"2025-07-25T08:42:36.836572Z","status":"active"},
-            {"content":"Traffic congestion in hsr sector 1.","type":"issue","category":"transportation","location":{"latitude":12.9093255,"longitude":77.6529664},"neighborhood":"200, Sector 2, HSR Layout, Bengaluru, Karnataka 560102, India","mediaUrl":null,"parentId":null,"geohash":"tdr1rn","postId":"9bed07d8-70ea-4038-a439-8f24b21fe0df","authorId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","author":{"userId":"RF1zvAxMPTYX2nKdXjSJAR6b8Md2","username":"Ayush Bisht","profileImageUrl":"https://lh3.googleusercontent.com/a/ACg8ocJ_cYHVsP2ENU4ZYb4TuvBlSPiOa63JoSG_0KQpN6aF8MYnaA=s96-c"},"upvotes":0,"downvotes":0,"upvotedBy":[],"downvotedBy":[],"commentCount":0,"createdAt":"2025-07-25T08:33:19.361901Z","status":"active"}
-        ]}
         
     except Exception as e:
         raise e
@@ -312,3 +305,54 @@ async def get_recent_activities_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching recent activities: {str(e)}"
         ) 
+
+@router.post("/activity/enhance")
+async def enhance_activity_with_external_links(
+    request: dict,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Enhance activity data with external links using get_summary_links function.
+    Takes activity data from recent activities response and adds external references.
+    """
+    try:
+        # Extract feed data from request
+        feed_data = {
+            "type": request.get("type", ""),
+            "category": request.get("category", ""),
+            "neighborhood": request.get("neighborhood", ""),
+            "summary": request.get("summary", "")
+        }
+        
+        # Validate required fields
+        if not feed_data["summary"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Summary is required"
+            )
+        
+        # Get external links using get_summary_links
+        enhanced_data = get_summary_links(
+            gemini_model=GeminiAgent,
+            feed_data=feed_data,
+            topk_links=5,
+            hours_back=24
+        )
+        
+        # Return enhanced activity data
+        result = {
+            **request,  # Include original activity data
+            "external_references": enhanced_data.get("external_references", []),
+            "enhanced_summary": enhanced_data.get("summary", feed_data["summary"])
+        }
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error enhancing activity with external links: {str(e)}"
+        ) 
+
