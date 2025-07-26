@@ -195,6 +195,30 @@ def format_recent_activities(posts: List[Dict], limit: int) -> List[Dict]:
                     if post_doc.exists:
                         post_data = post_doc.to_dict()
                         post_data['postId'] = post_doc.id
+                        # Fetch author details if authorId exists
+                        author_id = post_data.get('authorId')
+                        if author_id:
+                            user_ref = db.collection('users').document(author_id)
+                            user_doc = user_ref.get()
+                            if user_doc.exists:
+                                user_data = user_doc.to_dict()
+                                post_data['author'] = {
+                                    'userId': author_id,
+                                    'username': user_data.get('username', 'Unknown'),
+                                    'profileImageUrl': user_data.get('profileImageUrl'),
+                                }
+                            else:
+                                post_data['author'] = {
+                                    'userId': author_id,
+                                    'username': 'Unknown',
+                                    'profileImageUrl': None,
+                                }
+                        else:
+                            post_data['author'] = {
+                                'userId': None,
+                                'username': 'Unknown',
+                                'profileImageUrl': None,
+                            }
                         related_posts.append(post_data)
                 except Exception as e:
                     pass
@@ -332,11 +356,15 @@ async def enhance_activity_with_external_links(
             )
         
         # Get external links using get_summary_links
-        enhanced_data = get_summary_links(
-            gemini_model=GeminiAgent,
-            feed_data=feed_data,
-            topk_links=5,
-            hours_back=24
+        import asyncio
+        loop = asyncio.get_event_loop()
+        enhanced_data = await loop.run_in_executor(
+            None,
+            get_summary_links,
+            GeminiAgent,
+            feed_data,
+            5,
+            24
         )
         
         # Return enhanced activity data

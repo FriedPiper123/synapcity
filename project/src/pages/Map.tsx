@@ -53,6 +53,10 @@ type MapDataItem = {
   radius: number;
   content: string;
   authorId: string;
+  author: {
+    username: string;
+    profileImageUrl?: string;
+  };
   createdAt: string;
   upvotes: number;
   downvotes: number;
@@ -384,6 +388,7 @@ export default function MapPage() {
         radius: Math.floor(Math.random() * (2000 - 500 + 1)) + 500,
         content: post.content || '',
         authorId: post.authorId || 'anonymous',
+        author: post.author || { username: 'Anonymous', profileImageUrl: null },
         createdAt: post.createdAt || new Date().toISOString(),
         upvotes: post.upvotes || 0,
         downvotes: post.downvotes || 0,
