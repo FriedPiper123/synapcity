@@ -230,7 +230,7 @@ export default function MapPage() {
   const [endLocation, setEndLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
   const [showRouteLabels, setShowRouteLabels] = useState<{[key: number]: boolean}>({});
   
-  const { selectedLocation, getCurrentLocation } = useLocation();
+  const { selectedLocation, currentLocation, getCurrentLocation, isLoading: locationLoading } = useLocation();
 
   // Refs for input focus
   const startInputRef = useRef<HTMLInputElement>(null);
@@ -635,6 +635,14 @@ export default function MapPage() {
     fetchPosts();
   }, [selectedLocation]);
 
+  // Auto-center map on current location when first obtained (if no routes are displayed)
+  useEffect(() => {
+    if (currentLocation && !routeResults) {
+      setMapCenter({ lat: currentLocation.latitude, lng: currentLocation.longitude });
+      setMapZoom(13);
+    }
+  }, [currentLocation, routeResults]);
+
   const fetchPosts = async () => {
     setLoading(true);
     try {
@@ -793,29 +801,73 @@ export default function MapPage() {
     }
   };
 
+  const centerOnCurrentLocation = () => {
+    if (currentLocation) {
+      setMapCenter({ lat: currentLocation.latitude, lng: currentLocation.longitude });
+      setMapZoom(15);
+    }
+  };
+
   return (
     <div className="p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowLocationPresets(!showLocationPresets)}
+          
+          <div className="flex items-center gap-4">
+            {/* Current Location Display */}
+            <div 
+              className={`flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 transition-all ${
+                currentLocation && !locationLoading ? 'cursor-pointer hover:bg-blue-100 hover:border-blue-300' : ''
+              }`}
+              onClick={currentLocation && !locationLoading ? centerOnCurrentLocation : undefined}
+              title={currentLocation && !locationLoading ? 'Click to center map on your location' : ''}
             >
-              <MapPin className="w-4 h-4 mr-2" />
-              Location Presets
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCurrentLocation}
-            >
-              <Crosshair className="w-4 h-4 mr-2" />
-              Current Location
-            </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-blue-600" />
+                  {locationLoading && (
+                    <div className="absolute -inset-1">
+                      <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm">
+                  <div className="text-blue-700 font-medium">Current Location</div>
+                  <div className="text-blue-600 text-xs">
+                    {locationLoading ? 'Getting location...' : 
+                     currentLocation ? 
+                       (currentLocation.locationName || `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`) 
+                       : 'Location unavailable'}
+                  </div>
+                </div>
+                {currentLocation && !locationLoading && (
+                  <Crosshair className="w-3 h-3 text-blue-500 ml-1 opacity-60" />
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLocationPresets(!showLocationPresets)}
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                Location Presets
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCurrentLocation}
+                disabled={locationLoading}
+              >
+                <Crosshair className="w-4 h-4 mr-2" />
+                {locationLoading ? 'Locating...' : 'Update Location'}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -864,11 +916,13 @@ export default function MapPage() {
                     onCenterChanged={() => {}}
                     onZoomChanged={() => {}}
                   >
-                    {/* User's selected location marker */}
-                    {selectedLocation && (
+                    {/* User's selected location marker (only show if different from current location) */}
+                    {selectedLocation && currentLocation && 
+                     !(selectedLocation.latitude === currentLocation.latitude && 
+                       selectedLocation.longitude === currentLocation.longitude) && (
                       <Marker
                         position={{ lat: selectedLocation.latitude, lng: selectedLocation.longitude }}
-                        title="Your Location"
+                        title={`Selected Location: ${selectedLocation.locationName || 'Unknown Location'}`}
                         icon={{
                           url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -878,6 +932,43 @@ export default function MapPage() {
                           `),
                           scaledSize: new google.maps.Size(24, 24),
                         }}
+                      />
+                    )}
+                    
+                    {/* Show selected location marker if no current location available */}
+                    {selectedLocation && !currentLocation && (
+                      <Marker
+                        position={{ lat: selectedLocation.latitude, lng: selectedLocation.longitude }}
+                        title={`Selected Location: ${selectedLocation.locationName || 'Unknown Location'}`}
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
+                              <circle cx="12" cy="12" r="3" fill="white"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(24, 24),
+                        }}
+                      />
+                    )}
+
+                    {/* Current Location Checkpoint Marker */}
+                    {currentLocation && (
+                      <Marker
+                        position={{ lat: currentLocation.latitude, lng: currentLocation.longitude }}
+                        title={`Current Location: ${currentLocation.locationName || 'Your GPS Location'}`}
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M16 0C7.16 0 0 7.16 0 16C0 28 16 40 16 40S32 28 32 16C32 7.16 24.84 0 16 0Z" fill="#ef4444"/>
+                              <path d="M16 0C7.16 0 0 7.16 0 16C0 28 16 40 16 40S32 28 32 16C32 7.16 24.84 0 16 0Z" stroke="white" stroke-width="2"/>
+                              <path d="M12 16L14.5 18.5L20 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(32, 40),
+                          anchor: new google.maps.Point(16, 40),
+                        }}
+                        zIndex={1000}
                       />
                     )}
 
