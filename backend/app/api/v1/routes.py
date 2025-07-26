@@ -7,6 +7,9 @@ from datetime import datetime
 import logging
 from enum import Enum
 
+# Add import for SynapCitySmartTrafficIntelligence
+from app.agents.route_intelligence.smart_route import SynapCitySmartTrafficIntelligence
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -154,213 +157,105 @@ def generate_route_summary(route_id: int, total_delay: int, status: str, recomme
     
     return f"Route {route_id} is {severity} with {delay_text}. Recommendation: {recommendation.capitalize()}."
 
-async def fetch_route_data_with_retry(request_body: dict) -> dict:
-    """Fetch route data with retry logic and proper error handling."""
-    last_exception = None
-    
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient() as client:
-                logger.info(f"Fetching route data (attempt {attempt + 1})")
-                
-                response = await client.post(
-                    EXTERNAL_ROUTE_API_URL, 
-                    json=request_body, 
-                    timeout=REQUEST_TIMEOUT
-                )
-                response.raise_for_status()
-                
-                data = response.json()
-                
-                # Validate response structure
-                if not isinstance(data, list) or not data:
-                    raise ValueError("Invalid response format: expected non-empty list")
-                
-                return data
-                
-        except httpx.TimeoutException as e:
-            last_exception = e
-            logger.warning(f"Request timeout on attempt {attempt + 1}")
-            if attempt < MAX_RETRIES:
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                
-        except httpx.HTTPStatusError as e:
-            last_exception = e
-            logger.error(f"HTTP error {e.response.status_code} on attempt {attempt + 1}")
-            if e.response.status_code >= 500 and attempt < MAX_RETRIES:
-                await asyncio.sleep(2 ** attempt)
-            else:
-                break  # Don't retry on client errors (4xx)
-                
-        except Exception as e:
-            last_exception = e
-            logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
-            if attempt < MAX_RETRIES:
-                await asyncio.sleep(2 ** attempt)
-    
-    # If we get here, all retries failed
-    if isinstance(last_exception, httpx.TimeoutException):
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="External route API timeout after retries"
-        )
-    elif isinstance(last_exception, httpx.HTTPStatusError):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"External route API error: {last_exception.response.status_code}"
-        )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"External route API error: {str(last_exception)}"
-        )
-
 @router.post("/best-route", response_model=RoutesSummaryResponse)
 async def get_best_route(data: RouteRequest):
     """Get the best route with comprehensive analysis."""
     start_time = datetime.now()
-    
-    # Prepare request body
-    request_body = {
-        "origin": data.origin.strip(),
-        "destination": data.destination.strip(),
-    }
-    
-    if data.departure_time:
-        request_body["departure time"] = data.departure_time
-    
+
+    # Prepare arguments
+    origin = data.origin.strip()
+    destination = data.destination.strip()
+    departure_time = data.departure_time or int(datetime.now().timestamp() * 1000)
+
     try:
-        # Fetch route data with retry logic
-        routes_data = await fetch_route_data_with_retry(request_body)
-        
-        # Process routes
-        route_summaries = []
-        
-        for route_data in routes_data:
-            route_id = route_data.get("route_id")
-            if route_id is None:
-                logger.warning("Route missing route_id, skipping")
-                continue
-                
-            insights = route_data.get("insights", [])
-            groups = []
-            total_estimated_delay = 0
-            route_confidence_scores = []
-            
-            # Process each group within the route
-            for group_data in insights:
-                try:
-                    # Extract basic group info
-                    group_id = group_data.get("group_id", "")
-                    overall_status = group_data.get("overall_status", "moderate")
-                    recommendation = group_data.get("recommendation", "caution")
-                    delay = group_data.get("estimated_total_delay", 0)
-                    confidence_score = group_data.get("confidence_score", 0.0)
-                    
-                    # Categorize incidents
-                    incidents = group_data.get("active_incidents", [])
-                    categorized = categorize_incidents(incidents)
-                    
-                    # Extract traffic and weather data
-                    traffic_data = group_data.get("traffic_analysis", {})
-                    weather_data = group_data.get("weather_impact", {})
-                    
-                    # Create group summary
+        # Use the intelligence engine as an async context manager
+        async with SynapCitySmartTrafficIntelligence() as synap_city:
+            # Fetch route insights from local intelligence engine
+            routes_with_insights = await synap_city.get_per_route_insights(origin, destination, departure_time)
+
+            # The structure of routes_with_insights may need to be adapted to fit RoutesSummaryResponse
+            # We'll extract and map the fields accordingly
+            route_summaries = []
+            best_route_id = None
+            total_routes = 0
+            overall_statuses = []
+
+            # routes_with_insights['insights'] is a list of dicts with route_id, insights, last_updated
+            insights = routes_with_insights.get('insights', [])
+            for route in insights:
+                route_id = route.get('route_id')
+                groups = []
+                total_estimated_delay = 0
+                route_confidence_scores = []
+                overall_status = "clear"
+                recommendation = "proceed"
+                summary = ""
+                # Each group in route['insights']
+                for group in route.get('insights', []):
+                    # Map group fields to RouteGroupSummary
                     group_summary = RouteGroupSummary(
-                        group_id=group_id,
-                        overall_status=overall_status,
-                        recommendation=recommendation,
-                        total_delay=delay,
-                        key_factors=group_data.get("key_factors", []),
-                        alternative=group_data.get("alternative_suggestion", ""),
-                        summary=group_data.get("summary", ""),
-                        confidence_score=confidence_score,
-                        accident=categorized["accident"],
-                        construction=categorized["construction"],
-                        closure=categorized["closure"],
-                        weather=weather_data,
-                        crowding=categorized["crowding"],
-                        pattern=categorized["pattern"],
-                        traffic=traffic_data,
-                        last_updated=group_data.get("last_updated")
+                        group_id=group.get('group_id', ''),
+                        overall_status=group.get('overall_status', 'clear'),
+                        recommendation=group.get('recommendation', 'proceed'),
+                        total_delay=group.get('total_delay', 0),
+                        key_factors=group.get('key_factors', []),
+                        alternative=group.get('alternative', ''),
+                        summary=group.get('summary', ''),
+                        confidence_score=group.get('confidence_score', 0.0),
+                        accident=group.get('accident', []),
+                        construction=group.get('construction', []),
+                        closure=group.get('closure', []),
+                        weather=group.get('weather', {}),
+                        crowding=group.get('crowding', []),
+                        pattern=group.get('pattern', []),
+                        traffic=group.get('traffic', {}),
+                        last_updated=group.get('last_updated')
                     )
-                    
                     groups.append(group_summary)
-                    total_estimated_delay += delay
-                    route_confidence_scores.append(confidence_score)
-                    
-                except Exception as e:
-                    logger.error(f"Error processing group {group_data.get('group_id', 'unknown')}: {e}")
-                    continue
-            
-            if not groups:
-                logger.warning(f"No valid groups found for route {route_id}")
-                continue
-            
-            # Determine route-level status and recommendation
-            route_status = "clear"
-            route_recommendation = "proceed"
-            
-            if any(g.overall_status == "blocked" for g in groups):
-                route_status = "blocked"
-                route_recommendation = "avoid"
-            elif any(g.overall_status == "heavy" for g in groups):
-                route_status = "heavy"
-                route_recommendation = "caution"
-            elif any(g.overall_status == "moderate" for g in groups):
-                route_status = "moderate"
-                route_recommendation = "caution"
-            
-            # Calculate average confidence
-            avg_confidence = sum(route_confidence_scores) / len(route_confidence_scores) if route_confidence_scores else 0.0
-            
-            # Create route summary
-            route_summary = RouteSummary(
-                route_id=route_id,
-                total_estimated_delay=total_estimated_delay,
-                groups=groups,
-                overall_status=route_status,
-                recommendation=route_recommendation,
-                summary=generate_route_summary(route_id, total_estimated_delay, route_status, route_recommendation),
-                confidence_score=avg_confidence
+                    total_estimated_delay += group.get('total_delay', 0)
+                    route_confidence_scores.append(group.get('confidence_score', 0.0))
+                    overall_statuses.append(group.get('overall_status', 'clear'))
+                    # Use the first recommendation/summary for the route
+                    if not summary:
+                        summary = group.get('summary', '')
+                    if not recommendation or recommendation == "proceed":
+                        recommendation = group.get('recommendation', 'proceed')
+                    if group.get('overall_status') == "blocked":
+                        overall_status = "blocked"
+                # Compute confidence score as average
+                confidence_score = sum(route_confidence_scores) / len(route_confidence_scores) if route_confidence_scores else 0.0
+                route_summary = RouteSummary(
+                    route_id=route_id,
+                    total_estimated_delay=total_estimated_delay,
+                    groups=groups,
+                    overall_status=overall_status,
+                    recommendation=recommendation,
+                    summary=summary,
+                    confidence_score=confidence_score
+                )
+                route_summaries.append(route_summary)
+            total_routes = len(route_summaries)
+            # Determine best route
+            best_route_id = determine_best_route(route_summaries)
+            # Generate overall summary
+            blocked_routes = sum(1 for r in route_summaries if r.overall_status == "blocked")
+            if blocked_routes == total_routes:
+                status_desc = "All routes are currently blocked or heavily impacted"
+            elif blocked_routes > 0:
+                status_desc = f"{blocked_routes} of {total_routes} routes are blocked or heavily impacted"
+            else:
+                status_desc = "Routes are generally clear with minor delays"
+            overall_summary = f"Found {total_routes} route option{'s' if total_routes != 1 else ''} from {origin} to {destination}. {status_desc}."
+            # Calculate response time
+            end_time = datetime.now()
+            response_time_ms = int((end_time - start_time).total_seconds() * 1000)
+            return RoutesSummaryResponse(
+                overall_summary=overall_summary,
+                routes=route_summaries,
+                total_routes=total_routes,
+                best_route_id=best_route_id,
+                response_time_ms=response_time_ms
             )
-            
-            route_summaries.append(route_summary)
-        
-        if not route_summaries:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="No valid routes found in API response"
-            )
-        
-        # Determine best route
-        best_route_id = determine_best_route(route_summaries)
-        
-        # Generate overall summary
-        total_routes = len(route_summaries)
-        blocked_routes = sum(1 for r in route_summaries if r.overall_status == "blocked")
-        
-        if blocked_routes == total_routes:
-            status_desc = "All routes are currently blocked or heavily impacted"
-        elif blocked_routes > 0:
-            status_desc = f"{blocked_routes} of {total_routes} routes are blocked or heavily impacted"
-        else:
-            status_desc = "Routes are generally clear with minor delays"
-        
-        overall_summary = f"Found {total_routes} route option{'s' if total_routes > 1 else ''} from {data.origin} to {data.destination}. {status_desc}."
-        
-        # Calculate response time
-        end_time = datetime.now()
-        response_time_ms = int((end_time - start_time).total_seconds() * 1000)
-        
-        return RoutesSummaryResponse(
-            overall_summary=overall_summary,
-            routes=route_summaries,
-            total_routes=total_routes,
-            best_route_id=best_route_id,
-            response_time_ms=response_time_ms
-        )
-        
     except HTTPException:
         raise
     except Exception as e:

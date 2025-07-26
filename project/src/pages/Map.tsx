@@ -109,7 +109,7 @@ export default function MapPage() {
   console.log('somethign ', import.meta.env)
 
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: 'AIzaSyB_mxnT3LUUsmuUA29I0fFyWk8u0kh-7a8',
+    googleMapsApiKey: 'AIzaSyDTea-zPVH7xGr-FvmGZrm7WrqJdfCU9zo',
   });
 
   useEffect(() => {
