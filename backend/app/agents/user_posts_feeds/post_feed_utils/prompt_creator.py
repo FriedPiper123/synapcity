@@ -309,3 +309,151 @@ def create_route_prompt(kwargs) -> str:
     schema_json = json.dumps(output_schema, indent=2)
     prompt = f"""You are an advanced AI navigation assistant. Given the following origin and destination coordinates, use Google Maps or a similar tool to find the best route for the specified travel mode. Return the route as a list of steps, each with a step number, distance, duration, and instruction. Also include the total distance and duration for the route.\n\nORIGIN: {origin}\nDESTINATION: {destination}\nMODE: {mode}\n\nOUTPUT SCHEMA:\n```json\n{schema_json}\n```\n\nReturn ONLY a valid JSON object matching the schema above. No additional text or explanation."""
     return prompt
+
+def create_location_prediction_prompt(kwargs) -> str:
+    """
+    Creates a prompt for intelligent location prediction and suggestions based on user input.
+    Similar to Google Maps' location prediction system.
+    
+    Args:
+        user_input: The user's location input text
+        context: Additional context like current location, recent searches, etc.
+        location_type: Type of location being searched (address, business, landmark, etc.)
+        city: Target city (default: Bangalore)
+    
+    Returns:
+        Formatted prompt string for location prediction
+    """
+    user_input = kwargs.get('user_input', '')
+    context = kwargs.get('context', '')
+    location_type = kwargs.get('location_type', 'general')
+    city = kwargs.get('city', 'Bangalore')
+    
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "predictions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Full location name"},
+                        "short_name": {"type": "string", "description": "Short display name"},
+                        "type": {"type": "string", "description": "Location type (area, landmark, business, transport, etc.)"},
+                        "category": {"type": "string", "description": "Specific category (restaurant, mall, hospital, etc.)"},
+                        "confidence": {"type": "number", "description": "Confidence score 0-1"},
+                        "coordinates": {
+                            "type": "object",
+                            "properties": {
+                                "latitude": {"type": "number"},
+                                "longitude": {"type": "number"}
+                            }
+                        },
+                        "description": {"type": "string", "description": "Brief description or additional info"},
+                        "popularity": {"type": "string", "description": "Popularity level (high, medium, low)"}
+                    },
+                    "required": ["name", "short_name", "type", "category", "confidence", "coordinates", "description", "popularity"]
+                }
+            },
+            "search_suggestions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Alternative search terms that might help"
+            },
+            "context_aware": {
+                "type": "boolean",
+                "description": "Whether predictions are context-aware"
+            }
+        },
+        "required": ["predictions", "search_suggestions", "context_aware"]
+    }
+    
+    schema_json = json.dumps(output_schema, indent=2)
+    
+    # Define Bangalore-specific location categories
+    bangalore_categories = {
+        "areas": ["Koramangala", "Indiranagar", "Whitefield", "Electronic City", "HSR Layout", "JP Nagar", "Banashankari", "Jayanagar", "Malleswaram", "Rajajinagar", "Yeshwanthpur", "Hebbal", "Bellandur", "Bannerghatta", "Domlur", "Frazer Town", "Richmond Town", "Cox Town", "Ulsoor", "Lavelle Road"],
+        "landmarks": ["Cubbon Park", "Lalbagh Botanical Garden", "Bangalore Palace", "Vidhana Soudha", "High Court", "Tipu Sultan Palace", "ISKCON Temple", "Bull Temple", "Gavi Gangadhareshwara Temple", "St. Mary Basilica", "St. Mark Cathedral", "Bangalore Fort", "Freedom Park", "Jawaharlal Nehru Planetarium", "Government Museum", "Venkatappa Art Gallery"],
+        "transport": ["Kempegowda International Airport", "Bangalore City Railway Station", "Yeshwanthpur Railway Station", "Krishnarajapuram Railway Station", "Bangalore Metro", "Majestic Metro Station", "Indiranagar Metro Station", "Koramangala Metro Station", "HSR Layout Metro Station", "Electronic City Metro Station", "Whitefield Metro Station"],
+        "shopping": ["Phoenix MarketCity", "Forum Koramangala", "Garuda Mall", "Orion Mall", "Mantri Square", "VR Mall", "UB City", "Commercial Street", "Chickpet Market", "Russell Market", "KR Market", "Malleswaram Market", "Jayanagar 4th Block Market"],
+        "business": ["Manyata Tech Park", "Embassy Tech Village", "Prestige Tech Park", "Bagmane Tech Park", "RMZ Ecoworld", "Prestige Shantiniketan", "Embassy Golf Links", "Cessna Business Park", "Salarpuria Sattva Knowledge Park", "Divyasree Technopolis"],
+        "education": ["Indian Institute of Science", "Bangalore University", "Christ University", "St. Joseph College", "Mount Carmel College", "St. Xavier College", "St. John Medical College", "MS Ramaiah Medical College", "Kempegowda Institute of Medical Sciences"],
+        "healthcare": ["Apollo Hospital", "Manipal Hospital", "Fortis Hospital", "Narayana Health", "Sakra World Hospital", "Columbia Asia Hospital", "Sparsh Hospital", "Bangalore Medical College", "Victoria Hospital", "Bowring Hospital"],
+        "food": ["UB City Food Court", "Food Street", "Koramangala Food Street", "Indiranagar 100 Feet Road", "Commercial Street Food", "Malleswaram 8th Cross", "Jayanagar 4th Block Food", "Banashankari Food Street", "HSR Layout Food Street", "Electronic City Food Court"],
+        "parks": ["Cubbon Park", "Lalbagh Botanical Garden", "Bannerghatta National Park", "Freedom Park", "Bugle Rock Park", "Jayanagar Park", "Indiranagar Park", "Koramangala Park", "HSR Layout Park", "Whitefield Park"]
+    }
+    
+    prompt = f"""You are an advanced AI location prediction system for {city}, India. Your task is to intelligently predict and suggest locations based on user input, similar to Google Maps' location suggestions.
+
+USER INPUT: "{user_input}"
+CONTEXT: {context}
+LOCATION TYPE: {location_type}
+
+PREDICTION TASKS:
+
+🔍 TASK 1 - INPUT ANALYSIS:
+- Analyze the user input for location keywords, partial names, abbreviations
+- Identify potential location types (area, landmark, business, transport, etc.)
+- Detect spelling variations, common abbreviations, and nicknames
+- Consider phonetic similarities and common misspellings
+
+📍 TASK 2 - LOCATION PREDICTION:
+Based on the input, predict the most likely locations in {city}:
+
+AVAILABLE CATEGORIES:
+{json.dumps(bangalore_categories, indent=2)}
+
+PREDICTION GUIDELINES:
+1. **Exact Matches**: Prioritize exact name matches
+2. **Partial Matches**: Include locations that contain the input text
+3. **Fuzzy Matches**: Consider similar spellings and common variations
+4. **Context Awareness**: Use context to improve predictions
+5. **Popularity**: Consider location popularity and relevance
+6. **Geographic Relevance**: Focus on {city} locations only
+
+🎯 TASK 3 - CONFIDENCE SCORING:
+- 0.9-1.0: Exact match or very high confidence
+- 0.7-0.9: Strong partial match
+- 0.5-0.7: Moderate match with some uncertainty
+- 0.3-0.5: Weak match, low confidence
+- 0.1-0.3: Very weak match, minimal confidence
+
+📊 TASK 4 - POPULARITY ASSESSMENT:
+- **high**: Very popular, well-known locations
+- **medium**: Moderately popular locations
+- **low**: Lesser-known or niche locations
+
+🔍 TASK 5 - SEARCH SUGGESTIONS:
+Generate alternative search terms that might help users find what they're looking for.
+
+OUTPUT REQUIREMENTS:
+Return ONLY a valid JSON object matching this schema:
+
+```json
+{schema_json}
+```
+
+EXAMPLES:
+
+Input: "koramangala"
+→ Predictions: Koramangala area, Koramangala Metro Station, Koramangala Food Street, etc.
+
+Input: "airport"
+→ Predictions: Kempegowda International Airport
+
+Input: "mall"
+→ Predictions: Phoenix MarketCity, Forum Koramangala, Garuda Mall, etc.
+
+Input: "tech park"
+→ Predictions: Manyata Tech Park, Embassy Tech Village, Prestige Tech Park, etc.
+
+IMPORTANT:
+- Focus only on {city} locations
+- Provide accurate coordinates for each prediction
+- Include relevant descriptions and categories
+- Order by confidence and popularity
+- Generate helpful search suggestions
+- Ensure all coordinates are valid for {city}
+"""
+
+    return prompt

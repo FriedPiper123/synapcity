@@ -1,9 +1,9 @@
-from google import genai
-from google.genai import types
-from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt, create_route_prompt
+import google.generativeai as genai
+from .post_feed_utils.prompt_creator import create_analysis_prompt, create_similar_posts_summarizer_prompt,summarizer_prompt, create_route_prompt, create_location_prediction_prompt
 from .constants import GEMINI_API_KEY
-import re
+
 import json
+import re
 
 def set_gemini_output_injson(output):
   json_text = re.search(r'\{.*\}', output, re.DOTALL)
@@ -13,36 +13,22 @@ def set_gemini_output_injson(output):
   
 class GeminiModel:
     def __init__(self, api_key) -> None:
-        self.client = genai.Client(api_key=api_key)
-        #Define the grounding tool
-        grounding_tool = types.Tool(
-            google_search=types.GoogleSearch()
-        )
-
-        # Configure generation settings
-        self.config = types.GenerateContentConfig(
-            tools=[grounding_tool]
-        )
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
         self.task_prompt_creator = {
             "post_analysis": create_analysis_prompt, 
             "similar_post_summarization": create_similar_posts_summarizer_prompt, 
             "summarizer": summarizer_prompt,
-            "route": create_route_prompt
+            "route": create_route_prompt,
+            "location_prediction": create_location_prediction_prompt
         }
 
-
-    def __call__(self, task, google_search=False, gemini_model_type = "gemini-2.5-flash", **kwargs):
+    def __call__(self, task, google_search=False, gemini_model_type = "gemini-2.0-flash-exp", **kwargs):
         if task not in self.task_prompt_creator:
             raise ValueError(f"{task} is not supported. Supported tasks are {self.task_prompt_creator.keys()}")
         input_prompt = self.task_prompt_creator[task](kwargs)
-        response = self.client.models.generate_content(
-                                                model=gemini_model_type,
-                                                contents=input_prompt,
-                                                config = self.config if google_search else None
-                                                )
+        response = self.model.generate_content(input_prompt)
         return set_gemini_output_injson(response.text)
-
-
 
 GeminiAgent = GeminiModel(api_key=GEMINI_API_KEY)
 

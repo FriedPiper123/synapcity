@@ -132,6 +132,12 @@ class RouteRequest(BaseModel):
     destination: GeoPoint
     mode: str = "driving"
 
+class LocationPredictionRequest(BaseModel):
+    user_input: str
+    context: str = ""
+    location_type: str = "general"
+    city: str = "Bangalore"
+
 @router.get("/location-posts", response_model=List[Post])
 async def get_posts_by_location(
     latitude: float = Query(..., description="Latitude of the user's location"),
@@ -194,4 +200,23 @@ async def get_route_between_locations(
         )
         return ai_output
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching route via AI agent: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error getting route: {str(e)}")
+
+@router.post("/predict-location")
+async def predict_location(
+    prediction_req: LocationPredictionRequest = Body(..., description="Location prediction request")
+):
+    """
+    Get intelligent location predictions based on user input, similar to Google Maps suggestions.
+    """
+    try:
+        ai_output = GeminiAgent(
+            task="location_prediction",
+            user_input=prediction_req.user_input,
+            context=prediction_req.context,
+            location_type=prediction_req.location_type,
+            city=prediction_req.city
+        )
+        return ai_output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error predicting location: {str(e)}") 

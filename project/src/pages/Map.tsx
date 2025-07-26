@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { LocationAutocomplete } from '@/components/LocationAutocomplete';
+import { DateTimePicker } from '@/components/DateTimePicker';
 import { 
   MapPin, 
   Search, 
@@ -27,7 +29,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react';
 
 // Types
@@ -53,16 +56,50 @@ type MapDataItem = {
 
 type Destination = { id: string; name: string };
 
+// Route types
+type RouteStep = {
+  step: string;
+  distance: string;
+  duration: string;
+  instruction: string;
+};
+
+type RouteData = {
+  total_distance: string;
+  total_duration: string;
+  steps: RouteStep[];
+  mode: string;
+};
+
 // Location presets
 const LOCATION_PRESETS = [
-  { name: 'Current Location', latitude: 28.6139, longitude: 77.2090 },
-  { name: 'Downtown Delhi', latitude: 28.6139, longitude: 77.2090 },
-  { name: 'Connaught Place', latitude: 28.6315, longitude: 77.2167 },
-  { name: 'Khan Market', latitude: 28.6001, longitude: 77.2276 },
-  { name: 'Lajpat Nagar', latitude: 28.5671, longitude: 77.2431 },
-  { name: 'Hauz Khas', latitude: 28.5478, longitude: 77.2014 },
-  { name: 'South Extension', latitude: 28.5671, longitude: 77.2431 },
-  { name: 'Greater Kailash', latitude: 28.5478, longitude: 77.2014 },
+  { name: 'Current Location', latitude: 12.9716, longitude: 77.5946 },
+  { name: 'Koramangala', latitude: 12.9349, longitude: 77.6055 },
+  { name: 'Indiranagar', latitude: 12.9789, longitude: 77.6416 },
+  { name: 'Whitefield', latitude: 12.9699, longitude: 77.7499 },
+  { name: 'Electronic City', latitude: 12.8458, longitude: 77.6658 },
+  { name: 'HSR Layout', latitude: 12.9141, longitude: 77.6422 },
+  { name: 'JP Nagar', latitude: 12.9069, longitude: 77.5858 },
+  { name: 'Banashankari', latitude: 12.9245, longitude: 77.5575 },
+  { name: 'Jayanagar', latitude: 12.9245, longitude: 77.5575 },
+  { name: 'Malleswaram', latitude: 13.0067, longitude: 77.5707 },
+  { name: 'Rajajinagar', latitude: 12.9914, longitude: 77.5511 },
+  { name: 'Yeshwanthpur', latitude: 13.0222, longitude: 77.5568 },
+  { name: 'Hebbal', latitude: 13.0507, longitude: 77.5908 },
+  { name: 'Bellandur', latitude: 12.9349, longitude: 77.6954 },
+  { name: 'Bannerghatta', latitude: 12.8000, longitude: 77.5767 },
+  { name: 'MG Road', latitude: 12.9754, longitude: 77.6161 },
+  { name: 'Commercial Street', latitude: 12.9754, longitude: 77.6161 },
+  { name: 'Cubbon Park', latitude: 12.9762, longitude: 77.6033 },
+  { name: 'Lalbagh', latitude: 12.9507, longitude: 77.5848 },
+  { name: 'Bangalore Palace', latitude: 12.9980, longitude: 77.5925 },
+  { name: 'Vidhana Soudha', latitude: 12.9791, longitude: 77.5913 },
+  { name: 'Kempegowda International Airport', latitude: 13.1986, longitude: 77.7066 },
+  { name: 'Bangalore City Railway Station', latitude: 12.9770, longitude: 77.5683 },
+  { name: 'Phoenix MarketCity', latitude: 12.9349, longitude: 77.6055 },
+  { name: 'Forum Koramangala', latitude: 12.9349, longitude: 77.6055 },
+  { name: 'Manyata Tech Park', latitude: 13.0507, longitude: 77.5908 },
+  { name: 'Embassy Tech Village', latitude: 12.9349, longitude: 77.6954 },
 ];
 
 const destinations: Destination[] = [
@@ -82,12 +119,13 @@ const severityColors: Record<string, { bg: string; text: string }> = {
 
 const containerStyle = {
   width: '100%',
-  height: '70vh',
+  height: '100%',
+  minHeight: '70vh',
 };
 
 const center = {
-  lat: 28.6139,
-  lng: 77.2090,
+  lat: 12.9716,
+  lng: 77.5946,
 };
 
 export default function MapPage() {
@@ -97,10 +135,20 @@ export default function MapPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState<MapDataItem | null>(null);
   const [showRoutePlanning, setShowRoutePlanning] = useState(false);
+  
+  // Enhanced route planning state
   const [routeStart, setRouteStart] = useState('');
   const [routeEnd, setRouteEnd] = useState('');
-  const [routeDate, setRouteDate] = useState('');
-  const [routeTime, setRouteTime] = useState('');
+  const [routeDateTime, setRouteDateTime] = useState<Date | undefined>(undefined);
+  const [routeMode, setRouteMode] = useState<'driving' | 'walking' | 'bicycling' | 'transit'>('driving');
+  
+  // Route API state
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [startCoordinates, setStartCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [endCoordinates, setEndCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  
   const [showLocationPresets, setShowLocationPresets] = useState(false);
   const [mapCenter, setMapCenter] = useState(center);
   const [mapZoom, setMapZoom] = useState(12);
@@ -109,12 +157,52 @@ export default function MapPage() {
   console.log('somethign ', import.meta.env)
 
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: 'AIzaSyB_mxnT3LUUsmuUA29I0fFyWk8u0kh-7a8',
+    googleMapsApiKey: 'AIzaSyDTea-zPVH7xGr-FvmGZrm7WrqJdfCU9zo',
+    libraries: ['places'],
   });
 
   useEffect(() => {
     fetchPosts();
   }, [selectedLocation]);
+
+  // Set up map options for better live map experience
+  const mapOptions = {
+    zoomControl: true,
+    streetViewControl: false,
+    mapTypeControl: true,
+    fullscreenControl: true,
+    gestureHandling: 'cooperative',
+    styles: [
+      {
+        featureType: 'poi',
+        elementType: 'labels',
+        stylers: [{ visibility: 'off' }]
+      },
+      {
+        featureType: 'transit',
+        elementType: 'labels',
+        stylers: [{ visibility: 'off' }]
+      }
+    ]
+  };
+
+  const onMapLoad = (map: google.maps.Map) => {
+    // Enable map interactions
+    map.setOptions({
+      zoomControl: true,
+      streetViewControl: false,
+      mapTypeControl: true,
+      fullscreenControl: true,
+    });
+  };
+
+  const onMapClick = (event: google.maps.MapMouseEvent) => {
+    if (event.latLng) {
+      const lat = event.latLng.lat();
+      const lng = event.latLng.lng();
+      console.log('Map clicked at:', lat, lng);
+    }
+  };
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -136,8 +224,8 @@ export default function MapPage() {
         severity: post.category === 'accident' || post.category === 'emergency' ? 'high' : 
                  post.category === 'infrastructure' ? 'medium' : 'low',
         location: post.location_name || post.neighborhood || 'Unknown Location',
-        latitude: post.location?.latitude || 28.6139 + (Math.random() - 0.5) * 0.02,
-        longitude: post.location?.longitude || 77.2090 + (Math.random() - 0.5) * 0.02,
+        latitude: post.location?.latitude || 12.9716 + (Math.random() - 0.5) * 0.02,
+        longitude: post.location?.longitude || 77.5946 + (Math.random() - 0.5) * 0.02,
         radius: Math.floor(Math.random() * (2000 - 500 + 1)) + 500,
         content: post.content || '',
         authorId: post.authorId || 'anonymous',
@@ -153,6 +241,67 @@ export default function MapPage() {
       setPosts([]);
     }
     setLoading(false);
+  };
+
+  // Enhanced route planning function
+  const planRoute = async () => {
+    if (!startCoordinates || !endCoordinates) {
+      setRouteError('Please select both start and end locations');
+      return;
+    }
+
+    setRouteLoading(true);
+    setRouteError(null);
+
+    try {
+      const response = await apiFetch('http://0.0.0.0:8000/api/v1/location/route', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          origin: {
+            latitude: startCoordinates.lat,
+            longitude: startCoordinates.lng
+          },
+          destination: {
+            latitude: endCoordinates.lat,
+            longitude: endCoordinates.lng
+          },
+          mode: routeMode
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch route');
+      }
+
+      const data = await response.json();
+      setRouteData(data);
+    } catch (error) {
+      console.error('Error planning route:', error);
+      setRouteError('Failed to plan route. Please try again.');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const handleStartLocationSelect = (location: { lat: number; lng: number; name: string }) => {
+    setStartCoordinates({ lat: location.lat, lng: location.lng });
+  };
+
+  const handleEndLocationSelect = (location: { lat: number; lng: number; name: string }) => {
+    setEndCoordinates({ lat: location.lat, lng: location.lng });
+  };
+
+  const clearRoute = () => {
+    setRouteStart('');
+    setRouteEnd('');
+    setRouteDateTime(undefined);
+    setRouteData(null);
+    setRouteError(null);
+    setStartCoordinates(null);
+    setEndCoordinates(null);
   };
 
   const filteredData = posts.filter(item => 
@@ -202,43 +351,27 @@ export default function MapPage() {
   };
 
   const getCircleFillColor = (type: string, severity: Severity) => {
+    if (type === 'issue') {
+      return severityColors[severity]?.bg || '#fee2e2';
+    }
     switch (type) {
-      case 'issue': return severityColors[severity]?.bg + '80' || '#fee2e280';
-      case 'event': return '#dbeafe80';
-      case 'resolved': return '#dcfce780';
-      default: return '#f3f4f680';
+      case 'event': return '#dbeafe';
+      case 'resolved': return '#dcfce7';
+      default: return '#f1f5f9';
     }
   };
 
   const getRadiusDisplayText = (radius: number) => {
-    if (radius >= 1000) {
-      return `${(radius / 1000).toFixed(1)}km coverage radius`;
-    } else {
-      return `${radius}m coverage radius`;
-    }
+    if (radius < 1000) return `${radius}m`;
+    return `${(radius / 1000).toFixed(1)}km`;
   };
 
   const getAreaInsight = () => {
-    if (summaryStats.total === 0) return "No data available for this area. Start posting to see insights here.";
-    
-    const insights = [];
-    
-    if (summaryStats.highPriority > 0) {
-      insights.push(`${summaryStats.highPriority} high-priority issues need immediate attention.`);
+    const highPriorityIssues = posts.filter(item => item.type === 'issue' && item.severity === 'high');
+    if (highPriorityIssues.length > 0) {
+      return `⚠️ ${highPriorityIssues.length} high-priority issues need attention`;
     }
-    
-    if (summaryStats.events > 0) {
-      insights.push(`${summaryStats.events} community events are scheduled.`);
-    }
-    
-    if (summaryStats.resolved > 0) {
-      insights.push(`${summaryStats.resolved} issues have been successfully resolved.`);
-    }
-    
-    insights.push(`Average coverage radius: ${summaryStats.avgRadius}m`);
-    insights.push(`Total coverage area: ~${summaryStats.coverageArea} km²`);
-    
-    return insights.join(' ');
+    return '✅ Area looks good! No urgent issues reported.';
   };
 
   const handleMarkerClick = (marker: MapDataItem) => {
@@ -248,22 +381,23 @@ export default function MapPage() {
   const handleLocationPresetSelect = (preset: any) => {
     setMapCenter({ lat: preset.latitude, lng: preset.longitude });
     setMapZoom(14);
-    setShowLocationPresets(false);
   };
 
   const getLocationName = () => {
-    if (selectedLocation?.locationName) {
-      return selectedLocation.locationName;
+    if (selectedLocation) {
+      return selectedLocation.locationName || 'Selected Location';
     }
-    return selectedLocation ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}` : 'Current Location';
+    return 'Bangalore, India';
   };
 
   const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return 'Unknown date';
-    }
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const handleCurrentLocation = async () => {
@@ -274,134 +408,143 @@ export default function MapPage() {
     }
   };
 
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="flex h-screen bg-gray-50">
+      {/* Main Map Area */}
+      <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowLocationPresets(!showLocationPresets)}
-            >
-              <MapPin className="w-4 h-4 mr-2" />
-              Location Presets
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCurrentLocation}
-            >
-              <Crosshair className="w-4 h-4 mr-2" />
-              Current Location
-            </Button>
+        <div className="bg-white border-b border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Map View</h1>
+              <p className="text-gray-600">{getLocationName()}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCurrentLocation}
+                className="flex items-center gap-2"
+              >
+                <Crosshair className="w-4 h-4" />
+                Current Location
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRoutePlanning(!showRoutePlanning)}
+                className="flex items-center gap-2"
+              >
+                <Route className="w-4 h-4" />
+                {showRoutePlanning ? 'Hide' : 'Show'} Route Planning
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Location Presets */}
-        {showLocationPresets && (
-          <Card className="mb-4">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {LOCATION_PRESETS.map((preset, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleLocationPresetSelect(preset)}
-                    className="text-left justify-start"
-                  >
-                    <MapPin className="w-4 h-4 mr-2" />
-                    {preset.name}
-                  </Button>
-                ))}
+        {/* Map */}
+        <div className="flex-1 relative">
+          <GoogleMap
+            mapContainerStyle={containerStyle}
+            center={mapCenter}
+            zoom={mapZoom}
+            options={mapOptions}
+            onLoad={onMapLoad}
+            onClick={onMapClick}
+          >
+            {/* Location Presets */}
+            {showLocationPresets && LOCATION_PRESETS.map((preset, index) => (
+              <Marker
+                key={index}
+                position={{ lat: preset.latitude, lng: preset.longitude }}
+                title={preset.name}
+                onClick={() => handleLocationPresetSelect(preset)}
+              />
+            ))}
+
+            {/* Route Markers */}
+            {startCoordinates && (
+              <Marker
+                position={startCoordinates}
+                title="Start Location"
+                icon={{
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="12" r="8" fill="#22c55e" stroke="white" stroke-width="2"/>
+                      <circle cx="12" cy="12" r="3" fill="white"/>
+                    </svg>
+                  `),
+                  scaledSize: new google.maps.Size(24, 24),
+                }}
+              />
+            )}
+
+            {endCoordinates && (
+              <Marker
+                position={endCoordinates}
+                title="End Location"
+                icon={{
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="12" r="8" fill="#ef4444" stroke="white" stroke-width="2"/>
+                      <circle cx="12" cy="12" r="3" fill="white"/>
+                    </svg>
+                  `),
+                  scaledSize: new google.maps.Size(24, 24),
+                }}
+              />
+            )}
+
+            {/* Post Markers */}
+            {filteredData.map((item) => (
+              <div key={item.id}>
+                <Marker
+                  position={{ lat: item.latitude, lng: item.longitude }}
+                  title={item.title}
+                  onClick={() => handleMarkerClick(item)}
+                  icon={{
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="8" fill="${getMarkerColor(item.type, item.severity)}" stroke="white" stroke-width="2"/>
+                        <text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold">${getMarkerIcon(item.type).charAt(0).toUpperCase()}</text>
+                      </svg>
+                    `),
+                    scaledSize: new google.maps.Size(24, 24),
+                  }}
+                />
+                <Circle
+                  center={{ lat: item.latitude, lng: item.longitude }}
+                  radius={item.radius}
+                  options={{
+                    fillColor: getCircleFillColor(item.type, item.severity),
+                    fillOpacity: 0.3,
+                    strokeColor: getCircleColor(item.type, item.severity),
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                  }}
+                />
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ))}
+          </GoogleMap>
+        </div>
+      </div>
 
-        {/* Map Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Map */}
-          <div className="lg:col-span-2">
-            <Card className="shadow-lg">
-              <CardContent className="p-0">
-                {loading && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p className="text-gray-500">Loading map...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {isLoaded && (
-                  <div className="relative">
-                    <GoogleMap
-                      mapContainerStyle={containerStyle}
-                      center={mapCenter}
-                      zoom={mapZoom}
-                      onCenterChanged={() => {}}
-                      onZoomChanged={() => {}}
-                    >
-                      {/* User's selected location marker */}
-                      {selectedLocation && (
-                        <Marker
-                          position={{ lat: selectedLocation.latitude, lng: selectedLocation.longitude }}
-                          title="Your Location"
-                          icon={{
-                            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
-                                <circle cx="12" cy="12" r="3" fill="white"/>
-                              </svg>
-                            `),
-                            scaledSize: new google.maps.Size(24, 24),
-                          }}
-                        />
-                      )}
-
-                      {/* Render markers */}
-                      {filteredData.map((item) => (
-                        <div key={item.id}>
-                          <Marker
-                            position={{ lat: item.latitude, lng: item.longitude }}
-                            title={item.title}
-                            onClick={() => handleMarkerClick(item)}
-                            icon={{
-                              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <circle cx="12" cy="12" r="10" fill="white" stroke="${getMarkerColor(item.type, item.severity)}" stroke-width="2"/>
-                                  <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="${getMarkerColor(item.type, item.severity)}"/>
-                                </svg>
-                              `),
-                              scaledSize: new google.maps.Size(24, 24),
-                            }}
-                          />
-                          <Circle
-                            center={{ lat: item.latitude, lng: item.longitude }}
-                            radius={item.radius}
-                            options={{
-                              strokeColor: getCircleColor(item.type, item.severity),
-                              strokeWeight: 2,
-                              fillColor: getCircleFillColor(item.type, item.severity),
-                              fillOpacity: 0.3,
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </GoogleMap>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Route Planning */}
+      {/* Sidebar */}
+      <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
+        <div className="p-4 space-y-4">
+          {/* Route Planning */}
+          {showRoutePlanning && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -410,284 +553,237 @@ export default function MapPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <LocationAutocomplete
+                  label="Start Location"
+                  placeholder="Enter start location"
+                  value={routeStart}
+                  onChange={setRouteStart}
+                  onLocationSelect={handleStartLocationSelect}
+                />
+                
+                <LocationAutocomplete
+                  label="Destination"
+                  placeholder="Enter destination"
+                  value={routeEnd}
+                  onChange={setRouteEnd}
+                  onLocationSelect={handleEndLocationSelect}
+                />
+
+                <DateTimePicker
+                  label="Departure Time"
+                  placeholder="When do you want to leave?"
+                  date={routeDateTime}
+                  onDateChange={setRouteDateTime}
+                />
+
                 <div>
-                  <Label htmlFor="start">Start Location</Label>
-                  <Input
-                    id="start"
-                    placeholder="Enter start location"
-                    value={routeStart}
-                    onChange={(e) => setRouteStart(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="end">End Location</Label>
-                  <Input
-                    id="end"
-                    placeholder="Enter destination"
-                    value={routeEnd}
-                    onChange={(e) => setRouteEnd(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={routeDate}
-                      onChange={(e) => setRouteDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="time">Time</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={routeTime}
-                      onChange={(e) => setRouteTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Button className="w-full">
-                  <Route className="w-4 h-4 mr-2" />
-                  Plan Route
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="w-5 h-5" />
-                  Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant={selectedFilter === 'all' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('all')}
-                  >
-                    All ({posts.length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'issue' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('issue')}
-                  >
-                    Issues ({posts.filter(item => item.type === 'issue').length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'event' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('event')}
-                  >
-                    Events ({posts.filter(item => item.type === 'event').length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'resolved' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('resolved')}
-                  >
-                    Resolved ({posts.filter(item => item.type === 'resolved').length})
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Summary Toggle */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  View Options
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Button
-                    variant={!showSummary ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowSummary(false)}
-                  >
-                    Data
-                  </Button>
-                  <Button
-                    variant={showSummary ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowSummary(true)}
-                  >
-                    Summary
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Bottom Drawer */}
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {showSummary ? (
-                <>
-                  <BarChart3 className="w-5 h-5" />
-                  Area Summary
-                </>
-              ) : (
-                <>
-                  <Activity className="w-5 h-5" />
-                  Map Data
-                </>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-64">
-              {showSummary ? (
-                /* Summary View */
-                <div className="space-y-4">
-                  {/* Current Location Info */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-bold text-blue-800 mb-2">
-                      📍 Current Area: {getLocationName()}
-                    </h3>
-                    <p className="text-blue-600 text-sm">
-                      Click on map markers to view details
-                    </p>
-                  </div>
-
-                  {/* Area Insights */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-bold text-green-800 mb-2">
-                      📊 Area Insights
-                    </h3>
-                    <p className="text-green-700 text-sm leading-relaxed">
-                      {getAreaInsight()}
-                    </p>
-                  </div>
-
-                  {/* Statistics Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{summaryStats.total}</div>
-                      <div className="text-sm text-gray-600">Total Items</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-red-600">{summaryStats.issues}</div>
-                      <div className="text-sm text-gray-600">Issues</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{summaryStats.events}</div>
-                      <div className="text-sm text-gray-600">Events</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-green-600">{summaryStats.resolved}</div>
-                      <div className="text-sm text-gray-600">Resolved</div>
-                    </div>
-                  </div>
-
-                  {/* Coverage Information */}
-                  <div className="bg-gray-50 border rounded-lg p-4">
-                    <h3 className="font-bold text-gray-800 mb-3">
-                      📍 Coverage Information
-                    </h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Average Coverage Radius</span>
-                        <span className="font-semibold">{summaryStats.avgRadius}m</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Coverage Area</span>
-                        <span className="font-semibold">~{summaryStats.coverageArea} km²</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">High Priority Issues</span>
-                        <span className="font-semibold text-red-600">{summaryStats.highPriority}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Data View */
-                <div className="space-y-3">
-                  {loading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p className="text-gray-500">Loading map data...</p>
-                    </div>
-                  ) : filteredData.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="text-gray-400 mb-4">📭</div>
-                      <p className="text-gray-600">No data available</p>
-                      <p className="text-gray-500 text-sm">Start posting to see data on the map</p>
-                    </div>
-                  ) : (
-                    filteredData.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedMarker?.id === item.id
-                            ? 'bg-blue-50 border-blue-200'
-                            : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleMarkerClick(item)}
+                  <Label>Travel Mode</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {(['driving', 'walking', 'bicycling', 'transit'] as const).map((mode) => (
+                      <Button
+                        key={mode}
+                        variant={routeMode === mode ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setRouteMode(mode)}
+                        className="capitalize"
                       >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              item.type === 'issue'
-                                ? severityColors[item.severity]?.bg
-                                : item.type === 'event'
-                                ? 'bg-blue-100'
-                                : 'bg-green-100'
-                            }`}
-                          >
-                            {item.type === 'issue' && <AlertCircle className="w-5 h-5 text-red-600" />}
-                            {item.type === 'event' && <CalendarIcon className="w-5 h-5 text-blue-600" />}
-                            {item.type === 'resolved' && <CheckCircle className="w-5 h-5 text-green-600" />}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 mb-1">{item.title}</h4>
-                            <p className="text-sm text-gray-600 mb-2">
-                              {item.location} • {formatDate(item.createdAt)}
-                            </p>
-                            <p className="text-sm text-gray-700 mb-3 line-clamp-2">
-                              {item.content}
-                            </p>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-xs">
-                                {item.type}
-                              </Badge>
-                              {item.type === 'issue' && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs"
-                                  style={{ color: severityColors[item.severity]?.text }}
-                                >
-                                  {item.severity}
-                                </Badge>
-                              )}
+                        {mode}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {routeError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-600 text-sm">{routeError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1" 
+                    onClick={planRoute}
+                    disabled={routeLoading || !startCoordinates || !endCoordinates}
+                  >
+                    {routeLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Planning...
+                      </>
+                    ) : (
+                      <>
+                        <Route className="w-4 h-4 mr-2" />
+                        Plan Route
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={clearRoute}
+                    disabled={routeLoading}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {/* Route Results */}
+                {routeData && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <h4 className="font-medium text-blue-900 mb-2">Route Found</h4>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p><strong>Distance:</strong> {routeData.total_distance}</p>
+                      <p><strong>Duration:</strong> {routeData.total_duration}</p>
+                      <p><strong>Mode:</strong> {routeData.mode}</p>
+                    </div>
+                    {routeData.steps && routeData.steps.length > 0 && (
+                      <div className="mt-3">
+                        <h5 className="font-medium text-blue-900 mb-2">Directions:</h5>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {routeData.steps.slice(0, 5).map((step, index) => (
+                            <div key={index} className="text-xs text-blue-700">
+                              {index + 1}. {step.instruction}
                             </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>{getRadiusDisplayText(item.radius)}</span>
-                              <div className="flex items-center gap-4">
-                                <span>👍 {item.upvotes}</span>
-                                <span>💬 {item.commentCount}</span>
-                              </div>
+                          ))}
+                          {routeData.steps.length > 5 && (
+                            <div className="text-xs text-blue-600 italic">
+                              ... and {routeData.steps.length - 5} more steps
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
-                    ))
-                  )}
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="w-5 h-5" />
+                Filters
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant={selectedFilter === 'all' ? 'default' : 'secondary'}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedFilter('all')}
+                >
+                  All ({posts.length})
+                </Badge>
+                <Badge
+                  variant={selectedFilter === 'issue' ? 'default' : 'secondary'}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedFilter('issue')}
+                >
+                  Issues ({posts.filter(item => item.type === 'issue').length})
+                </Badge>
+                <Badge
+                  variant={selectedFilter === 'event' ? 'default' : 'secondary'}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedFilter('event')}
+                >
+                  Events ({posts.filter(item => item.type === 'event').length})
+                </Badge>
+                <Badge
+                  variant={selectedFilter === 'resolved' ? 'default' : 'secondary'}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedFilter('resolved')}
+                >
+                  Resolved ({posts.filter(item => item.type === 'resolved').length})
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Summary Toggle */}
+          <Card>
+            <CardHeader>
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5" />
+                      Area Summary
+                    </CardTitle>
+                    {showSummary ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{summaryStats.total}</div>
+                        <div className="text-sm text-gray-600">Total Posts</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-red-600">{summaryStats.highPriority}</div>
+                        <div className="text-sm text-gray-600">High Priority</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{summaryStats.resolved}</div>
+                        <div className="text-sm text-gray-600">Resolved</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">{summaryStats.coverageArea}</div>
+                        <div className="text-sm text-gray-600">Coverage (km²)</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                      <p className="text-sm text-gray-700">{getAreaInsight()}</p>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </CardHeader>
+          </Card>
+
+          {/* Selected Marker Details */}
+          {selectedMarker && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  {selectedMarker.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      style={{
+                        backgroundColor: severityColors[selectedMarker.severity]?.bg,
+                        color: severityColors[selectedMarker.severity]?.text,
+                      }}
+                    >
+                      {selectedMarker.type}
+                    </Badge>
+                    <Badge variant="outline">{selectedMarker.category}</Badge>
+                  </div>
+                  <p className="text-sm text-gray-600">{selectedMarker.content}</p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span>📍 {selectedMarker.location}</span>
+                    <span>📅 {formatDate(selectedMarker.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span>👍 {selectedMarker.upvotes}</span>
+                    <span>👎 {selectedMarker.downvotes}</span>
+                    <span>💬 {selectedMarker.commentCount}</span>
+                  </div>
                 </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
