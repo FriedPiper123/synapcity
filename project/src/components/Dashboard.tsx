@@ -14,6 +14,7 @@ import { useActivities } from '../contexts/ActivitiesContext';
 import { useLocationName } from '../hooks/useLocationName';
 import { useNavigate } from 'react-router-dom';
 import { AreaInsights } from './AreaInsights';
+import { LocationPermissionBanner } from './LocationPermissionBanner';
 
 interface DashboardStats {
   activeIssues: number;
@@ -321,6 +322,9 @@ export const Dashboard = () => {
 
   return (
     <div className="space-y-4 lg:space-y-6">
+      {/* Location Permission Banner */}
+      <LocationPermissionBanner />
+      
       {/* Welcome Section */}
       {statsLoading ? (
         <WelcomeSkeleton />
