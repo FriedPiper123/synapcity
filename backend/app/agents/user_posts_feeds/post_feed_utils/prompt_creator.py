@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Dict, Any, List
 
 
 def create_analysis_prompt(kwargs) -> str:
@@ -368,3 +369,280 @@ def create_route_prompt(kwargs) -> str:
     schema_json = json.dumps(output_schema, indent=2)
     prompt = f"""You are an advanced AI navigation assistant. Given the following origin and destination coordinates, use Google Maps or a similar tool to find the best route for the specified travel mode. Return the route as a list of steps, each with a step number, distance, duration, and instruction. Also include the total distance and duration for the route.\n\nORIGIN: {origin}\nDESTINATION: {destination}\nMODE: {mode}\n\nOUTPUT SCHEMA:\n```json\n{schema_json}\n```\n\nReturn ONLY a valid JSON object matching the schema above. No additional text or explanation."""
     return prompt
+
+def create_location_prediction_prompt(kwargs) -> str:
+    """
+    Optimized prompt for Google Gemini to get fastest and most accurate location predictions.
+    
+    Key optimizations:
+    1. Simplified schema for faster processing
+    2. More specific instructions for better accuracy
+    3. Pre-filtered location data for speed
+    4. Clear output format for consistent parsing
+    """
+    user_input = kwargs.get('user_input', '').strip().lower()
+    context = kwargs.get('context', '')
+    location_type = kwargs.get('location_type', 'general')
+    city = kwargs.get('city', 'Bangalore')
+    max_results = kwargs.get('max_results', 5)
+    
+    # Pre-defined high-confidence locations for instant matching
+    quick_matches = get_quick_matches(user_input, city)
+    
+    # Simplified prompt structure
+    prompt = f"""You are a location predictor for {city}, India. 
+
+User is searching for: "{user_input}"
+
+{f"QUICK MATCH FOUND: {quick_matches}" if quick_matches else ""}
+
+Return exactly {max_results} location predictions in this JSON format:
+
+{{
+    "predictions": [
+        {{
+            "name": "Full location name",
+            "display": "Short display name", 
+            "type": "area",
+            "confidence": 0.95,
+            "lat": 12.9352,
+            "lng": 77.6245,
+            "popular": true
+        }}
+    ],
+    "suggestions": ["alternative search terms"]
+}}
+
+Popular {city} locations to consider:
+- Areas: Koramangala, Indiranagar, Whitefield, Electronic City, HSR Layout, BTM Layout, Jayanagar, Malleshwaram, Banashankari, JP Nagar, Rajajinagar, Hebbal, Bellandur, Marathahalli, Sarjapur
+- Landmarks: Cubbon Park, Lalbagh, Bangalore Palace, Vidhana Soudha, ISKCON Temple, UB City, MG Road, Brigade Road, Commercial Street
+- Transport: Kempegowda Airport, Majestic Station, Metro Stations
+- Shopping: Phoenix Mall, Forum Mall, Garuda Mall, Orion Mall, Mantri Square
+- Tech: Manyata Tech Park, Embassy Tech Village, Electronic City, Whitefield IT Parks
+
+Return ONLY valid JSON. No explanations."""
+
+    return prompt
+
+
+def get_quick_matches(user_input: str, city: str) -> str:
+    """
+    Pre-filter for instant high-confidence matches to speed up processing
+    """
+    # Comprehensive Bangalore locations database
+    quick_map = {
+        # Airports & Transport Hubs
+        'airport': 'Kempegowda International Airport',
+        'kg airport': 'Kempegowda International Airport', 
+        'kia': 'Kempegowda International Airport',
+        'international airport': 'Kempegowda International Airport',
+        'majestic': 'Majestic Bus Station',
+        'city railway': 'Bangalore City Railway Station',
+        'cantonment': 'Cantonment Railway Station',
+        'yesvantpur': 'Yesvantpur Junction',
+        'kr puram': 'KR Puram Railway Station',
+        # Exhibition & Convention Centers
+        'biec': 'Bangalore International Exhibition Centre',
+        'exhibition center': 'Bangalore International Exhibition Centre',
+        'exhibition centre': 'Bangalore International Centre',
+        'international exhibition': 'Bangalore International Exhibition Centre',
+        'hitex': 'HITEX Exhibition Centre',
+        'nimhans convention': 'NIMHANS Convention Centre',
+        'trade center': 'World Trade Center Bangalore',
+        'wtc': 'World Trade Center Bangalore',
+        # Major Roads & Areas
+        'mg road': 'MG Road',
+        'brigade': 'Brigade Road',
+        'commercial': 'Commercial Street',
+        'residency road': 'Residency Road',
+        'richmond road': 'Richmond Road',
+        'cunningham road': 'Cunningham Road',
+        'kasturba road': 'Kasturba Road',
+        'lavelle road': 'Lavelle Road',
+        'church street': 'Church Street',
+        'st marks road': 'St Marks Road',
+        'double road': 'Double Road',
+        'infantry road': 'Infantry Road',
+        'outer ring road': 'Outer Ring Road',
+        'orr': 'Outer Ring Road',
+        'sarjapur road': 'Sarjapur Road',
+        'bannerghatta road': 'Bannerghatta Road',
+        'hosur road': 'Hosur Road',
+        'old airport road': 'Old Airport Road',
+        'airport road': 'Kempegowda International Airport Road',
+        'bellary road': 'Bellary Road',
+        'tumkur road': 'Tumkur Road',
+        'mysore road': 'Mysore Road',
+        'magadi road': 'Magadi Road',
+        # Parks & Gardens
+        'cubbon': 'Cubbon Park',
+        'lalbagh': 'Lalbagh Botanical Garden',
+        'botanical garden': 'Lalbagh Botanical Garden',
+        'bannerghatta park': 'Bannerghatta Biological Park',
+        'bannerghatta zoo': 'Bannerghatta National Park',
+        'freedom park': 'Freedom Park',
+        'bugle rock': 'Bugle Rock Park',
+        'ulsoor lake': 'Ulsoor Lake',
+        'sankey tank': 'Sankey Tank',
+        'hebbal lake': 'Hebbal Lake',
+        # Shopping Malls
+        'ub city': 'UB City Mall',
+        'forum': 'Forum Mall',
+        'phoenix': 'Phoenix MarketCity',
+        'garuda': 'Garuda Mall',
+        'orion': 'Orion Mall',
+        'mantri': 'Mantri Square',
+        'vr mall': 'VR Bengaluru',
+        'total mall': 'Total Mall',
+        'gopalan mall': 'Gopalan Innovation Mall',
+        'nexus': 'Nexus Mall',
+        'elements mall': 'Elements Mall',
+        # Temples & Religious Places
+        'iskcon': 'ISKCON Temple',
+        'bull temple': 'Bull Temple',
+        'dodda ganesha': 'Dodda Ganesha Temple',
+        'gavi gangadhareshwara': 'Gavi Gangadhareshwara Temple',
+        'someshwara': 'Someshwara Temple',
+        'st mary': 'St Mary Basilica',
+        'st marks cathedral': 'St Marks Cathedral',
+        'holy trinity': 'Holy Trinity Church',
+        # Landmarks
+        'palace': 'Bangalore Palace',
+        'vidhana soudha': 'Vidhana Soudha',
+        'high court': 'Karnataka High Court',
+        'tipu palace': 'Tipu Sultan Summer Palace',
+        'bangalore fort': 'Bangalore Fort',
+        'mayo hall': 'Mayo Hall',
+        'town hall': 'Town Hall',
+        'raj bhavan': 'Raj Bhavan',
+        # Areas & Localities
+        'electronic': 'Electronic City',
+        'koramangala': 'Koramangala',
+        'indiranagar': 'Indiranagar',  
+        'whitefield': 'Whitefield',
+        'hsr': 'HSR Layout',
+        'btm': 'BTM Layout',
+        'jp nagar': 'JP Nagar',
+        'jayanagar': 'Jayanagar',
+        'malleshwaram': 'Malleshwaram',
+        'banashankari': 'Banashankari',
+        'rajajinagar': 'Rajajinagar',
+        'hebbal': 'Hebbal',
+        'bellandur': 'Bellandur',
+        'marathahalli': 'Marathahalli',
+        'yelahanka': 'Yelahanka',
+        'rt nagar': 'RT Nagar',
+        'rr nagar': 'RR Nagar',
+        'vijayanagar': 'Vijayanagar',
+        'basavanagudi': 'Basavanagudi',
+        'shivajinagar': 'Shivajinagar',
+        'gandhinagar': 'Gandhinagar',
+        'chickpet': 'Chickpet',
+        'cottonpet': 'Cottonpet',
+        'chamarajpet': 'Chamarajpet',
+        'seshadripuram': 'Seshadripuram',
+        'sadashivanagar': 'Sadashivanagar',
+        'dollars colony': 'Dollars Colony',
+        'benson town': 'Benson Town',
+        'frazer town': 'Frazer Town',
+        'cox town': 'Cox Town',
+        'richmond town': 'Richmond Town',
+        'langford town': 'Langford Town',
+        'austin town': 'Austin Town',
+        'jeevanbhimanagar': 'Jeevanbhimanagar',
+        'adugodi': 'Adugodi',
+        'ejipura': 'Ejipura',
+        'domlur': 'Domlur',
+        'kalyan nagar': 'Kalyan Nagar',
+        'banaswadi': 'Banaswadi',
+        'hoodi': 'Hoodi',
+        'mahadevapura': 'Mahadevapura',
+        'brookefield': 'Brookefield',
+        'kadugodi': 'Kadugodi',
+        'varthur': 'Varthur',
+        'sarjapur': 'Sarjapur',
+        'carmelaram': 'Carmelaram',
+        'bommanahalli': 'Bommanahalli',
+        'hongasandra': 'Hongasandra',
+        'begur': 'Begur',
+        'hulimavu': 'Hulimavu',
+        'arekere': 'Arekere',
+        'banashankari': 'Banashankari',
+        'girinagar': 'Girinagar',
+        'uttarahalli': 'Uttarahalli',
+        'kengeri': 'Kengeri',
+        'rajarajeshwari nagar': 'Rajarajeshwari Nagar',
+        'rr nagar': 'Rajarajeshwari Nagar',
+        'nagarbhavi': 'Nagarbhavi',
+        'herohalli': 'Herohalli',
+        'peenya': 'Peenya',
+        'jalahalli': 'Jalahalli',
+        'mathikere': 'Mathikere',
+        'yeshwanthpur': 'Yeshwanthpur',
+        # Tech Parks & IT Hubs
+        'manyata': 'Manyata Tech Park',
+        'embassy tech': 'Embassy Tech Village',
+        'prestige tech': 'Prestige Tech Park',
+        'bagmane': 'Bagmane Tech Park',
+        'rmz ecoworld': 'RMZ Ecoworld',
+        'ecospace': 'RMZ Ecospace',
+        'cessna': 'Cessna Business Park',
+        'divyasree': 'Divyasree Technopolis',
+        'salarpuria': 'Salarpuria Sattva Knowledge City',
+        'brigade technopark': 'Brigade Technopark',
+        'prestige shantiniketan': 'Prestige Shantiniketan',
+        'embassy golf': 'Embassy Golf Links',
+        'itpl': 'International Tech Park Limited',
+        'global village': 'Global Village Tech Park',
+        # Hospitals
+        'apollo': 'Apollo Hospital',
+        'manipal': 'Manipal Hospital',
+        'fortis': 'Fortis Hospital',
+        'narayana': 'Narayana Health',
+        'sakra': 'Sakra World Hospital',
+        'columbia asia': 'Columbia Asia Hospital',
+        'sparsh': 'Sparsh Hospital',
+        'victoria': 'Victoria Hospital',
+        'bowring': 'Bowring Hospital',
+        'st john': 'St John Medical College Hospital',
+        'ramaiah': 'MS Ramaiah Medical College',
+        'kims': 'Kempegowda Institute of Medical Sciences',
+        'nimhans': 'NIMHANS',
+        # Educational Institutions
+        'iisc': 'Indian Institute of Science',
+        'bangalore university': 'Bangalore University',
+        'christ university': 'Christ University',
+        'st joseph': 'St Joseph College',
+        'mount carmel': 'Mount Carmel College',
+        'st xavier': 'St Xavier College',
+        'presidency': 'Presidency College',
+        'national college': 'National College',
+        'central college': 'Central College',
+        'womens christian': 'Womens Christian College',
+        'reva university': 'REVA University',
+        'pes university': 'PES University',
+        'bms college': 'BMS College of Engineering',
+        'rv college': 'RV College of Engineering',
+        'msrit': 'MS Ramaiah Institute of Technology',
+        'pesit': 'PES Institute of Technology',
+        'cmr institute': 'CMR Institute of Technology',
+        # Markets
+        'kr market': 'KR Market',
+        'russell market': 'Russell Market',
+        'chickpet market': 'Chickpet Market',
+        'malleswaram market': 'Malleswaram Market',
+        'city market': 'City Market',
+        'avenue road': 'Avenue Road',
+        'shivaji nagar bus': 'Shivajinagar Bus Stand'
+    }
+    
+    # Only return exact matches or very close matches
+    for key, value in quick_map.items():
+        # Exact match
+        if user_input == key:
+            return f"HIGH CONFIDENCE: '{value}'"
+        # Very close match (key is a significant part of the input)
+        elif len(key) >= 3 and (key in user_input and len(key) >= len(user_input) * 0.7):
+            return f"HIGH CONFIDENCE: '{value}'"
+    
+    return ""

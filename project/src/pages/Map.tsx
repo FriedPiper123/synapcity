@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GoogleMap, Marker, Circle, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, Marker, Circle, useJsApiLoader, Polyline } from '@react-google-maps/api';
 import { apiFetch } from '../lib/api';
 import { useLocation } from '../contexts/LocationContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +27,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react';
 
 // Types
@@ -99,18 +100,226 @@ export default function MapPage() {
   const [showRoutePlanning, setShowRoutePlanning] = useState(false);
   const [routeStart, setRouteStart] = useState('');
   const [routeEnd, setRouteEnd] = useState('');
-  const [routeDate, setRouteDate] = useState('');
-  const [routeTime, setRouteTime] = useState('');
+  const [routeDateTime, setRouteDateTime] = useState<string>(() => {
+    // Default to now, rounded to next 5 minutes
+    const now = new Date();
+    now.setSeconds(0, 0);
+    now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5);
+    return now.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  });
+  const [dateTimeError, setDateTimeError] = useState<string | null>(null);
   const [showLocationPresets, setShowLocationPresets] = useState(false);
   const [mapCenter, setMapCenter] = useState(center);
   const [mapZoom, setMapZoom] = useState(12);
+  
+  // Enhanced UI state for autocomplete
+  const [startAutocompleteQuery, setStartAutocompleteQuery] = useState('');
+  const [endAutocompleteQuery, setEndAutocompleteQuery] = useState('');
+  const [autocompleteResults, setAutocompleteResults] = useState<any[]>([]);
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [activeInput, setActiveInput] = useState<'start' | 'end' | null>(null);
+  // Remove old routeDate, routeTime, selectedDate, selectedTime, showDateTimePicker state and usage
+  
+  // Route planning state
+  const [routePlanning, setRoutePlanning] = useState(false);
+  const [routeResults, setRouteResults] = useState<any>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
+  
   const { selectedLocation, getCurrentLocation } = useLocation();
+
+  // Refs for input focus
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
 
   console.log('somethign ', import.meta.env)
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: 'AIzaSyDTea-zPVH7xGr-FvmGZrm7WrqJdfCU9zo',
   });
+
+  // Debounced autocomplete search for start input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      console.log('Start autocomplete effect:', { startAutocompleteQuery, activeInput });
+      if (startAutocompleteQuery.length >= 2 && activeInput === 'start') {
+        console.log('Fetching autocomplete for start:', startAutocompleteQuery);
+        fetchAutocompleteResults(startAutocompleteQuery);
+      } else if (activeInput === 'start') {
+        setAutocompleteResults([]);
+        setShowAutocomplete(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [startAutocompleteQuery, activeInput]);
+
+  // Debounced autocomplete search for end input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      console.log('End autocomplete effect:', { endAutocompleteQuery, activeInput });
+      if (endAutocompleteQuery.length >= 2 && activeInput === 'end') {
+        console.log('Fetching autocomplete for end:', endAutocompleteQuery);
+        fetchAutocompleteResults(endAutocompleteQuery);
+      } else if (activeInput === 'end') {
+        setAutocompleteResults([]);
+        setShowAutocomplete(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [endAutocompleteQuery, activeInput]);
+
+  // Clear route results when inputs change
+  useEffect(() => {
+    if (routeResults || routeError) {
+      setRouteResults(null);
+      setRouteError(null);
+    }
+  }, [routeStart, routeEnd]);
+
+  const fetchAutocompleteResults = async (query: string) => {
+    console.log('fetchAutocompleteResults called with:', query);
+    try {
+      setAutocompleteLoading(true);
+      
+      // Use simple fetch for autocomplete (no auth required)
+      const response = await fetch(`http://0.0.0.0:8000/api/v1/routes/autocomplete?query=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('Autocomplete response:', response);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Autocomplete data:', data);
+        setAutocompleteResults(data.predictions || []);
+        setShowAutocomplete(true);
+      } else {
+        console.log('Autocomplete response not ok:', response.status);
+        setAutocompleteResults([]);
+      }
+    } catch (error) {
+      console.error('Error fetching autocomplete results:', error);
+      setAutocompleteResults([]);
+    } finally {
+      setAutocompleteLoading(false);
+    }
+  };
+
+  const handleLocationSelect = (prediction: any) => {
+    console.log('Location selected:', prediction);
+    const locationText = prediction.description;
+    
+    if (activeInput === 'start') {
+      setRouteStart(locationText);
+      setStartAutocompleteQuery(locationText);
+    } else if (activeInput === 'end') {
+      setRouteEnd(locationText);
+      setEndAutocompleteQuery(locationText);
+    }
+    
+    setShowAutocomplete(false);
+    setAutocompleteResults([]);
+    setActiveInput(null);
+  };
+
+  const handleInputFocus = (inputType: 'start' | 'end') => {
+    console.log('Input focus:', inputType);
+    setActiveInput(inputType);
+    setShowAutocomplete(true);
+  };
+
+  const handleInputBlur = () => {
+    console.log('Input blur');
+    setTimeout(() => {
+      setShowAutocomplete(false);
+      setActiveInput(null);
+    }, 200);
+  };
+
+  const handlePlanRoute = async () => {
+    setDateTimeError(null);
+    console.log('Planning route:', { routeStart, routeEnd, routeDateTime });
+    
+    if (!routeStart || !routeEnd) {
+      setRouteError('Please enter both start and end locations');
+      return;
+    }
+
+    // Validate date/time is not in the past
+    if (!routeDateTime) {
+      setDateTimeError('Please select a date and time');
+      return;
+    }
+    const selectedDate = new Date(routeDateTime);
+    if (selectedDate.getTime() < Date.now() - 60000) { // allow 1 min clock skew
+      setDateTimeError('Please select a present or future date/time');
+      return;
+    }
+
+    try {
+      setRoutePlanning(true);
+      setRouteError(null);
+      
+      // Calculate departure time
+      let departureTime = selectedDate.getTime();
+
+      // Use simple fetch for route planning (no auth required)
+      const response = await fetch('http://0.0.0.0:8000/api/v1/routes/best-route', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          origin: routeStart,
+          destination: routeEnd,
+          departure_time: departureTime
+        })
+      });
+
+      console.log('Route planning response:', response);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Route planning data:', data);
+        setRouteResults(data);
+      } else {
+        const errorData = await response.json();
+        console.error('Route planning error:', errorData);
+        setRouteError(errorData.detail || 'Failed to plan route');
+      }
+    } catch (error) {
+      console.error('Error planning route:', error);
+      setRouteError('Failed to plan route. Please try again.');
+    } finally {
+      setRoutePlanning(false);
+    }
+  };
+
+  // Enhanced date/time picker handlers
+  const handleDateConfirm = (date: Date) => {
+    setRouteDateTime(date.toISOString().slice(0, 16));
+  };
+
+  const handleTimeConfirm = (time: { hours: number; minutes: number }) => {
+    setRouteDateTime(`${time.hours.toString().padStart(2, '0')}:${time.minutes.toString().padStart(2, '0')}`);
+  };
+
+  const formatDateTime = () => {
+    let result = '';
+    if (routeDateTime) {
+      result += new Date(routeDateTime).toLocaleDateString();
+    }
+    if (routeDateTime) {
+      result += ` ${routeDateTime.slice(11, 16)}`;
+    }
+    return result || 'Select date & time';
+  };
 
   useEffect(() => {
     fetchPosts();
@@ -392,6 +601,13 @@ export default function MapPage() {
                           />
                         </div>
                       ))}
+                      {/* Draw the selected route polyline if available */}
+                      {selectedRouteIndex !== null && routeResults && routeResults.routes[selectedRouteIndex] && (
+                        <Polyline
+                          path={routeResults.routes[selectedRouteIndex].polyline}
+                          options={{ strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.8 }}
+                        />
+                      )}
                     </GoogleMap>
                   </div>
                 )}
@@ -401,7 +617,7 @@ export default function MapPage() {
 
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Route Planning */}
+            {/* Enhanced Route Planning */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -410,48 +626,224 @@ export default function MapPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
+                <div className="relative">
                   <Label htmlFor="start">Start Location</Label>
-                  <Input
-                    id="start"
-                    placeholder="Enter start location"
-                    value={routeStart}
-                    onChange={(e) => setRouteStart(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Input
+                      ref={startInputRef}
+                      id="start"
+                      placeholder="Enter start location"
+                      value={routeStart}
+                      onChange={(e) => {
+                        console.log('Start input onChange:', e.target.value);
+                        setRouteStart(e.target.value);
+                        setStartAutocompleteQuery(e.target.value);
+                      }}
+                      onFocus={() => handleInputFocus('start')}
+                      onBlur={handleInputBlur}
+                      className="pr-8"
+                    />
+                    {autocompleteLoading && activeInput === 'start' && (
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {/* Autocomplete Results for Start */}
+                  {showAutocomplete && activeInput === 'start' && autocompleteResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {autocompleteResults.map((prediction, index) => (
+                        <button
+                          key={prediction.place_id}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-2"
+                          onClick={() => handleLocationSelect(prediction)}
+                        >
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">{prediction.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
+
+                <div className="relative">
                   <Label htmlFor="end">End Location</Label>
+                  <div className="relative">
+                    <Input
+                      ref={endInputRef}
+                      id="end"
+                      placeholder="Enter destination"
+                      value={routeEnd}
+                      onChange={(e) => {
+                        console.log('End input onChange:', e.target.value);
+                        setRouteEnd(e.target.value);
+                        setEndAutocompleteQuery(e.target.value);
+                      }}
+                      onFocus={() => handleInputFocus('end')}
+                      onBlur={handleInputBlur}
+                      className="pr-8"
+                    />
+                    {autocompleteLoading && activeInput === 'end' && (
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                    )}
+                  </div>
+                  
+                  {/* Autocomplete Results for End */}
+                  {showAutocomplete && activeInput === 'end' && autocompleteResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {autocompleteResults.map((prediction, index) => (
+                        <button
+                          key={prediction.place_id}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-2"
+                          onClick={() => handleLocationSelect(prediction)}
+                        >
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm">{prediction.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Enhanced Date/Time Picker */}
+                <div>
+                  <Label htmlFor="route-datetime">Date & Time</Label>
                   <Input
-                    id="end"
-                    placeholder="Enter destination"
-                    value={routeEnd}
-                    onChange={(e) => setRouteEnd(e.target.value)}
+                    id="route-datetime"
+                    type="datetime-local"
+                    min={new Date().toISOString().slice(0, 16)}
+                    value={routeDateTime}
+                    onChange={e => {
+                      setRouteDateTime(e.target.value);
+                      setDateTimeError(null);
+                    }}
+                    className="w-full"
                   />
+                  {dateTimeError && (
+                    <div className="text-xs text-red-600 mt-1">{dateTimeError}</div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={routeDate}
-                      onChange={(e) => setRouteDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="time">Time</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={routeTime}
-                      onChange={(e) => setRouteTime(e.target.value)}
-                    />
+
+                {/* Quick Destinations */}
+                <div>
+                  <Label className="text-sm font-medium mb-2">Quick Destinations</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {destinations.map(dest => (
+                      <Button
+                        key={dest.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRouteEnd(dest.name)}
+                        className="text-xs"
+                      >
+                        <MapPin className="w-3 h-3 mr-1" />
+                        {dest.name}
+                      </Button>
+                    ))}
                   </div>
                 </div>
-                <Button className="w-full">
-                  <Route className="w-4 h-4 mr-2" />
-                  Plan Route
+
+                <Button 
+                  className="w-full" 
+                  onClick={handlePlanRoute}
+                  disabled={routePlanning}
+                >
+                  {routePlanning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Planning Route...
+                    </>
+                  ) : (
+                    <>
+                      <Route className="w-4 h-4 mr-2" />
+                      Plan Route
+                    </>
+                  )}
                 </Button>
+                
+                {/* Route Error Display */}
+                {routeError && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{routeError}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Route Results Display */}
+                {routeResults && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="font-medium text-green-700">Route Found!</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium">Summary:</span> {routeResults.overall_summary}
+                      </div>
+                      <div>
+                        <span className="font-medium">Total Routes:</span> {routeResults.total_routes}
+                      </div>
+                      {routeResults.best_route_id && (
+                        <div>
+                          <span className="font-medium">Best Route ID:</span> {routeResults.best_route_id}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium">Response Time:</span> {routeResults.response_time_ms}ms
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {routeResults && routeResults.routes && (
+                  <div className="mt-4 space-y-4">
+                    <div className="mb-2 text-lg font-semibold">Route Options</div>
+                    {routeResults.routes.map((route: any, idx: number) => {
+                      const isBest = routeResults.best_route_id === route.route_id;
+                      const isSelected = selectedRouteIndex === idx;
+                      // Pros/cons extraction
+                      const pros = [];
+                      const cons = [];
+                      route.groups.forEach((group: any) => {
+                        if (group.overall_status === 'clear' || group.recommendation === 'proceed') {
+                          pros.push(...(group.key_factors || []));
+                        } else {
+                          cons.push(...(group.key_factors || []));
+                        }
+                      });
+                      return (
+                        <div
+                          key={route.route_id}
+                          className={`border rounded-lg p-4 shadow-sm cursor-pointer transition-all ${isBest ? 'border-green-600 bg-green-50' : 'border-gray-200'} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                          onClick={() => setSelectedRouteIndex(idx)}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-bold text-lg">Route {idx + 1}</span>
+                            {isBest && <span className="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">Best</span>}
+                            {isSelected && <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded">Selected</span>}
+                          </div>
+                          <div className="mb-1 text-sm">Estimated Delay: <span className="font-semibold">{route.total_estimated_delay} min</span></div>
+                          <div className="mb-1 text-sm">Recommendation: <span className="font-semibold">{route.recommendation}</span></div>
+                          <div className="mb-1 text-sm">Summary: {route.summary}</div>
+                          <div className="flex gap-4 mt-2">
+                            <div className="flex-1">
+                              <div className="font-medium text-green-700">Pros</div>
+                              <ul className="list-disc ml-5 text-green-800 text-xs">
+                                {pros.length > 0 ? pros.map((p, i) => <li key={i}>{p}</li>) : <li>No major advantages</li>}
+                              </ul>
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-red-700">Cons</div>
+                              <ul className="list-disc ml-5 text-red-800 text-xs">
+                                {cons.length > 0 ? cons.map((c, i) => <li key={i}>{c}</li>) : <li>No major disadvantages</li>}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -689,6 +1081,9 @@ export default function MapPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Enhanced Date/Time Picker Modal */}
+      {/* This section is no longer needed as date/time selection is handled directly */}
     </div>
   );
 } 
