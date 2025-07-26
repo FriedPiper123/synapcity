@@ -1,6 +1,12 @@
 import json
 from datetime import datetime
+<<<<<<< HEAD
 from typing import Dict, Any, List
+=======
+from pathlib import Path
+from google.genai import types
+
+>>>>>>> d5332e8 (model type chnaged to lite for some functions)
 
 
 def create_analysis_prompt(kwargs) -> str:
@@ -646,3 +652,51 @@ def get_quick_matches(user_input: str, city: str) -> str:
             return f"HIGH CONFIDENCE: '{value}'"
     
     return ""
+
+def create_image_content_analysis_prompt(kwargs):
+    img_path = kwargs.get("img_path", None)
+    user_content = kwargs.get("user_content", "")
+    output_schema = {
+        "caption": "caption of the given image", 
+        "confidence": "float value between 0 and 1 representing confidence in the caption"
+    }
+    if Path(img_path).exists():
+        with open(img_path, 'rb') as f:
+            image_bytes = f.read()
+
+    prompt = f"""
+You are a skilled image analyst. Given the following image and related user content, generate a concise and descriptive caption summarizing the main content of the image.
+
+IMAGE PATH: {img_path if img_path else 'No image path provided'}
+
+USER CONTENT:
+\"\"\"
+{user_content}
+\"\"\"
+
+Your response should include:
+
+1. A clear, accurate caption describing the key elements or subjects in the image.
+2. A confidence score as a float between 0 and 1 that indicates how confident you are about the accuracy of the caption.
+
+
+Use professional, clear language, and keep the caption brief (under 30 words). Ensure the confidence score reflects your certainty based on the image content and user context.
+
+OUTPUT REQUIREMENTS:
+Return ONLY a valid JSON object matching this exact schema:
+
+```json
+{output_schema}
+```
+
+IMPORTANT: 
+- Ensure all JSON syntax is correct
+- Set confidence level based on clarity and consistency of the input data
+"""
+    return [
+      types.Part.from_bytes(
+        data=image_bytes,
+        mime_type='image/jpeg',
+      ),
+      prompt
+    ]
