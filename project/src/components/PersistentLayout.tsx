@@ -20,7 +20,6 @@ const sidebarItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/' },
   { id: 'map', label: 'City Map', icon: Map, path: '/map' },
   { id: 'feed', label: 'Community Feed', icon: MessageSquare, path: '/feed' },
-  { id: 'summary', label: 'Daily Summary', icon: Calendar, path: '/summary' },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/insights' },
   { id: 'community', label: 'Community', icon: Users, path: '/community' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/profile' },
