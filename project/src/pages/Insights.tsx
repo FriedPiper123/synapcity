@@ -16,6 +16,13 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Responsive
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useInsights } from '../contexts/InsightsContext';
 import { useLocation } from '../contexts/LocationContext';
+import { 
+  AreaOverviewSkeleton, 
+  CategoryCardSkeleton, 
+  HistoricalChartSkeleton, 
+  InsightsSkeleton,
+  NearbyAreasSkeleton 
+} from '../components/InsightsSkeleton';
 
 export default function InsightsPage() {
   const { selectedLocation } = useLocation();
@@ -170,15 +177,6 @@ export default function InsightsPage() {
           </Button>
         </div>
 
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading area analysis...</p>
-            </div>
-          </div>
-        )}
-
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2">
@@ -188,7 +186,31 @@ export default function InsightsPage() {
           </div>
         )}
 
-        {data && (
+        {(loading || (!data && !error)) && (
+          <div className="space-y-6">
+            {/* Area Overview Skeleton */}
+            <AreaOverviewSkeleton />
+            
+            {/* Historical Chart Skeleton */}
+            <HistoricalChartSkeleton />
+            
+            {/* Category Details Skeletons */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <CategoryCardSkeleton />
+              <CategoryCardSkeleton />
+              <CategoryCardSkeleton />
+              <CategoryCardSkeleton />
+            </div>
+            
+            {/* Key Insights Skeleton */}
+            <InsightsSkeleton />
+            
+            {/* Nearby Areas Skeleton */}
+            <NearbyAreasSkeleton />
+          </div>
+        )}
+
+        {data && !loading && (
           <div className="space-y-6">
             {/* Area Overview */}
             <Card className="shadow-lg">
