@@ -43,21 +43,22 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     try {
       setIsLoading(true);
       setError(null);
-
+      
       if (!navigator.geolocation) {
         setError('Geolocation is not supported by this browser');
         return;
       }
-
+      
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
+          timeout: 30000, // Increased timeout for better accuracy
+          maximumAge: 0, // Don't use cached position, always get fresh coordinates
         });
       });
-
-      console.log('Got geolocation position:', position.coords);
+      
+      console.log('came here.')
+      console.log('Got geolocation position:', position);
 
       // Fetch location name from Google Maps API
       const locationName = await fetchLocationName(position.coords.latitude, position.coords.longitude);
@@ -194,6 +195,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   // Get initial location on app start
   useEffect(() => {
+    console.log('running here.')
     getCurrentLocation();
   }, []);
 
