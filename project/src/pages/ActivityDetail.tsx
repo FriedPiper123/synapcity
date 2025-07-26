@@ -56,6 +56,7 @@ export default function ActivityDetail() {
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [enhancingActivity, setEnhancingActivity] = useState(false);
 
   useEffect(() => {
     // Try to get activity data from location state first (if navigated from dashboard)
@@ -86,6 +87,8 @@ export default function ActivityDetail() {
     if (!activityId) return;
     
     try {
+      setEnhancingActivity(true);
+      
       // Prepare the request payload with activity data from recent activities
       const requestPayload = {
         type: baseActivity.type,
@@ -115,6 +118,8 @@ export default function ActivityDetail() {
     } catch (err) {
       console.error('Error fetching enhanced activity data:', err);
       // Don't show error to user as we have base activity data
+    } finally {
+      setEnhancingActivity(false);
     }
   };
 
@@ -247,6 +252,32 @@ export default function ActivityDetail() {
       return 'Unknown time';
     }
   };
+
+  // External References Loading Skeleton
+  const ExternalReferencesLoadingSkeleton = () => (
+    <Card className="shadow-sm border border-gray-100">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold text-gray-800">
+          External References
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex space-x-3 overflow-x-auto pb-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex-shrink-0 w-64 p-3 rounded-lg border border-gray-200 animate-pulse">
+              <div className="flex items-center space-x-3">
+                <Skeleton className="w-8 h-8 rounded flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <Skeleton className="h-4 w-32 mb-1" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   // Loading Skeleton Component
   const LoadingSkeleton = () => (
@@ -419,9 +450,17 @@ export default function ActivityDetail() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 leading-relaxed text-base">
-              {activity.enhanced_summary || activity.content}
-            </p>
+            <div className="relative">
+              <p className="text-gray-700 leading-relaxed text-base">
+                {activity.enhanced_summary || activity.content}
+              </p>
+              {enhancingActivity && !activity.enhanced_summary && (
+                <div className="absolute top-0 right-0 flex items-center text-xs text-blue-600">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                  Enhancing...
+                </div>
+              )}
+            </div>
             
             {activity.location && (
               <div className="flex items-center space-x-2 mt-4 text-sm text-gray-600">
@@ -435,7 +474,9 @@ export default function ActivityDetail() {
         </Card>
 
         {/* External References */}
-        {activity.external_references && activity.external_references.length > 0 && (
+        {enhancingActivity ? (
+          <ExternalReferencesLoadingSkeleton />
+        ) : activity.external_references && activity.external_references.length > 0 ? (
           <Card className="shadow-sm border border-gray-100">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-gray-800">
@@ -490,7 +531,7 @@ export default function ActivityDetail() {
               </div>
             </CardContent>
           </Card>
-        )}
+        ) : null}
 
         {/* Related Posts */}
         {activity.related_posts && activity.related_posts.length > 0 && (

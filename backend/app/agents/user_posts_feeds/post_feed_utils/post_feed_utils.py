@@ -60,6 +60,9 @@ def group_all_posts_by_category(all_posts):
     return dict(grouped_by_category)
 
 def get_all_posts_summary(gemini_model, all_posts, post_summaries_batch_for_feeds = 20):
+    from pprint import pprint
+    pprint(all_posts)
+    print(100*"%")
     grouped_categories = group_all_posts_by_category(all_posts)
     summaries = {}
     for category, posts in grouped_categories.items():
