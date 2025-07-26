@@ -270,7 +270,7 @@ async def get_area_analysis_response():
         raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
 
 
-@ttl_lru_cache(ttl=60, max_size=528)
+# @ttl_lru_cache(ttl=60, max_size=528)
 @router.post("/analyze-area", response_class=JSONResponse)
 async def analyze_area_with_webhook(request: AreaAnalysisRequest):
     """
@@ -308,22 +308,22 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
         }
         
         # Call external webhook API
-        webhook_url = "https://donothackmyapi.duckdns.org/webhook/analyze-area"
+        webhook_url = "https://donothackmyapi.duckdns.org/webhook-test/analyze-area"
         
         import httpx
 
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                webhook_url,
+                json=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'SynapCityApp/1.0'
+                },
+                timeout=None
+            )
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    webhook_url,
-                    json=payload,
-                    headers={
-                        'Content-Type': 'application/json',
-                        'User-Agent': 'SynapCityApp/1.0'
-                    },
-                    timeout=None
-                )
-
+            
             if response.status_code == 200:
                 # Return the response from the external API
                 return JSONResponse(content=response.json())
