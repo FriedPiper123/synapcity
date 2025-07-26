@@ -14,12 +14,22 @@ describe('SocialFeed', () => {
     {
       postId: '1',
       content: 'Test post content',
-      authorName: 'Test User',
       type: 'issue',
+      category: 'infrastructure',
       upvotes: 5,
-      commentCount: 2,
-      createdAt: '2024-01-01T00:00:00Z',
-      neighborhood: 'Test Area',
+      downvotes: 1,
+      commentCount: 3,
+      createdAt: '2023-01-01T00:00:00Z',
+      author: {
+        userId: 'user1',
+        username: 'Test User',
+        profileImageUrl: null
+      },
+      neighborhood: 'Test Neighborhood',
+      location: {
+        latitude: 28.6139,
+        longitude: 77.2090
+      }
     },
   ];
 

@@ -365,11 +365,21 @@ export const SocialFeed = ({
                 {/* Post Header */}
                 <div className="flex items-start justify-between mb-3 lg:mb-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
-                      {post.avatar || '🧑'}
+                    <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center text-white font-bold overflow-hidden">
+                      {post.author?.profileImageUrl ? (
+                        <img 
+                          src={post.author.profileImageUrl} 
+                          alt={post.author.username} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center">
+                          {post.author?.username?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-800 text-sm lg:text-base">{post.authorName || 'User'}</h4>
+                      <h4 className="font-semibold text-gray-800 text-sm lg:text-base">{post.author?.username || 'Anonymous'}</h4>
                       <div className="flex items-center space-x-2 text-xs lg:text-sm text-gray-600">
                         <Clock className="w-3 h-3 lg:w-4 lg:h-4" />
                         <span>{post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}</span>

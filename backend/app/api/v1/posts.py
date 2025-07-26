@@ -69,7 +69,6 @@ async def create_post(
             "mentioned_location_name": None,
             "geohash": post_geohash,  # Add geohash for efficient queries
         }
-        print(post_data["content"])
         gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = post_data["content"])
         if gemini_output['sentiment'].lower() == "vulgar":
             raise HTTPException(

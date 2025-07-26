@@ -25,6 +25,10 @@ interface MapDataItem {
   radius: number;
   content: string;
   authorId: string;
+  author: {
+    username: string;
+    profileImageUrl?: string;
+  };
   createdAt: string;
   upvotes: number;
   downvotes: number;
@@ -108,6 +112,7 @@ export const InsightsMap: React.FC = () => {
           radius: Math.floor(Math.random() * (2000 - 500 + 1)) + 500,
           content: post.content || '',
           authorId: post.authorId || 'anonymous',
+          author: post.author || { username: 'Anonymous', profileImageUrl: null },
           createdAt: post.createdAt || new Date().toISOString(),
           upvotes: post.upvotes || 0,
           downvotes: post.downvotes || 0,
@@ -571,7 +576,7 @@ export const InsightsMap: React.FC = () => {
                           <div className="flex-1">
                             <h4 className="font-medium text-foreground mb-1">{item.title}</h4>
                             <p className="text-sm text-muted-foreground mb-2">
-                              {item.location} • {formatDate(item.createdAt)}
+                              By {item.author?.username || 'Anonymous'} • {item.location} • {formatDate(item.createdAt)}
                             </p>
                             <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                               {item.content}
