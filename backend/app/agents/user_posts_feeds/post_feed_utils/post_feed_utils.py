@@ -75,6 +75,7 @@ def get_all_posts_summary(gemini_model, all_posts, post_summaries_batch_for_feed
             for idx, cont in enumerate(batch_content):
                 summaries_in_string += f"{idx+1}: {cont}\n"
             output_json = gemini_model(
+                gemini_model_type = "gemini-2.5-flash-lite",
                 task = "summarizer_prompt_without_using_external_sources", 
                 type = curr_type,
                 issue_tag = category, 
@@ -100,6 +101,7 @@ def get_summary_links(gemini_model, feed_data, topk_links = 3, hours_back = 24):
     summary = feed_data.get("summary", "")
 
     output_json = gemini_model(
+        gemini_model_type = "gemini-2.5-flash",
         task = "summarizer_prompt_using_external_sources", 
         type = curr_type,
         issue_tag = category, 

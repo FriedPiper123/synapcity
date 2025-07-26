@@ -6,7 +6,9 @@ from .post_feed_utils.prompt_creator import (
     create_summarizer_prompt_without_using_external_sources, 
     create_summarizer_prompt_using_external_sources, 
     create_route_prompt,
-    create_location_prediction_prompt)
+    create_location_prediction_prompt,
+    create_route_prompt, 
+    create_image_content_analysis_prompt)
 from .constants import GEMINI_API_KEY
 import re
 import json
@@ -34,7 +36,8 @@ class GeminiModel:
             "summarizer_prompt_without_using_external_sources": create_summarizer_prompt_without_using_external_sources,
             "summarizer_prompt_using_external_sources": create_summarizer_prompt_using_external_sources, 
             "route": create_route_prompt,
-            "location_prediction": create_location_prediction_prompt
+            "location_prediction": create_location_prediction_prompt,
+            "image_content_analysis": create_image_content_analysis_prompt
         }
 
 
@@ -52,4 +55,15 @@ class GeminiModel:
 
 
 GeminiAgent = GeminiModel(api_key=GEMINI_API_KEY)
+
+
+
+if __name__ == "__main__":
+    img_path = "/app/sc_agents/new/synapcity/backend/app/agents/user_posts_feeds/istockphoto-95658927-612x612.jpg"
+    user_content = "There is a pothole on the roads of HSR bangalore"
+    a = GeminiAgent(gemini_model_type = "gemini-2.5-flash-lite", 
+                    task = "image_content_analysis", 
+                    img_path = img_path, user_content = user_content
+                    )
+    print(a)
 
