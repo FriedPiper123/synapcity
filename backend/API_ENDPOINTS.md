@@ -2,6 +2,56 @@
 
 ## Area Insights API
 
+### Analyze Area with External Webhook
+**Endpoint:** `POST /api/v1/insights/analyze-area`
+
+**Description:** Analyze area using external webhook API. Takes coordinates, analysis type, and time range, then calls external API and returns the response.
+
+**Request Body:**
+```json
+{
+  "coordinates": {
+    "type": "point",
+    "lat": 12.9716,
+    "lng": 77.6412
+  },
+  "analysisType": "full",
+  "timeRange": "24hours"
+}
+```
+
+**Parameters:**
+- `coordinates` (object, required): Location coordinates
+  - `type` (string): Type of coordinate (e.g., "point")
+  - `lat` (float): Latitude (-90 to 90)
+  - `lng` (float): Longitude (-180 to 180)
+- `analysisType` (string, required): Type of analysis ("full", "basic", "detailed")
+- `timeRange` (string, required): Time range for analysis ("24hours", "7days", "30days", "90days")
+
+**Response:** Returns the response from the external webhook API at `https://donothackmyapi.duckdns.org/webhook/analyze-area`
+
+**Example Request:**
+```bash
+curl -X POST "http://0.0.0.0:8000/api/v1/insights/analyze-area" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "coordinates": {
+      "type": "point",
+      "lat": 12.9716,
+      "lng": 77.6412
+    },
+    "analysisType": "full",
+    "timeRange": "24hours"
+  }'
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid coordinates or missing required fields
+- `502 Bad Gateway`: External API error
+- `504 Gateway Timeout`: External API timeout
+- `500 Internal Server Error`: Server error
+
 ### Get Area Insights
 **Endpoint:** `GET /api/v1/insights/area-insights`
 
