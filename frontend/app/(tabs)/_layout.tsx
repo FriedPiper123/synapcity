@@ -67,6 +67,13 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <MaterialCommunityIcons name="rss" size={24} color={color} />,
           }}
         />
+        <Tabs.Screen
+          name="insights"
+          options={{
+            title: 'Insights',
+            tabBarIcon: ({ color }) => <MaterialCommunityIcons name="chart-bar" size={24} color={color} />, // Professional icon
+          }}
+        />
       </Tabs>
     </View>
   );

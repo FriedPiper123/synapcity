@@ -224,7 +224,7 @@ export default function CreatePost() {
 
     try {
       setLoading(true); // <-- set loading
-      const res = await apiFetch('http://192.168.1.24:8000/api/v1/posts/', {
+      const res = await apiFetch('http://0.0.0.0:8000/api/v1/posts/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
