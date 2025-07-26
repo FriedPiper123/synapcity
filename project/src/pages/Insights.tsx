@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Users, Activity, BarChart3, MapPin, Target, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,53 +14,17 @@ import {
 } from '@/components/ui/chart';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { apiFetch } from '../lib/api';
+import { useInsights } from '../contexts/InsightsContext';
 import { useLocation } from '../contexts/LocationContext';
 
 export default function InsightsPage() {
   const { selectedLocation } = useLocation();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, analyzeArea } = useInsights();
   const [expandedIncidents, setExpandedIncidents] = useState<Set<string>>(new Set());
   const [timeRange, setTimeRange] = useState('24hours');
 
   const handleAnalyze = async () => {
-    if (!selectedLocation) {
-      setError('No location selected. Please pin a location first.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const payload = {
-        coordinates: {
-          type: "point",
-          lat: selectedLocation.latitude,
-          lng: selectedLocation.longitude
-        },
-        analysisType: "full",
-        timeRange: timeRange
-      };
-
-      const response = await apiFetch('http://0.0.0.0:8000/api/v1/insights/analyze-area', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch area analysis: ${errorText}`);
-      }
-      
-      const json = await response.json();
-      setData(json);
-    } catch (err: any) {
-      setError(err.message || 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
+    await analyzeArea(timeRange);
   };
 
   const getScoreColor = (score: number) => {
