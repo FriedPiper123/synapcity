@@ -12,7 +12,6 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'map', label: 'City Map', icon: Map },
   { id: 'feed', label: 'Community Feed', icon: MessageSquare },
-  { id: 'summary', label: 'Daily Summary', icon: Calendar },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   { id: 'community', label: 'Community', icon: Users },
   { id: 'settings', label: 'Settings', icon: Settings },
