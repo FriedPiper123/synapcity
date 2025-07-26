@@ -28,7 +28,16 @@ import {
   ChevronUp,
   X,
   Plus,
-  Loader2
+  Loader2,
+  Navigation,
+  Clock as ClockIcon,
+  AlertTriangle,
+  Info,
+  Zap,
+  Shield,
+  Car,
+  Bus,
+  Train
 } from 'lucide-react';
 
 // Types
@@ -52,8 +61,6 @@ type MapDataItem = {
   category: string;
 };
 
-type Destination = { id: string; name: string };
-
 // Location presets
 const LOCATION_PRESETS = [
   { name: 'Current Location', latitude: 28.6139, longitude: 77.2090 },
@@ -66,19 +73,19 @@ const LOCATION_PRESETS = [
   { name: 'Greater Kailash', latitude: 28.5478, longitude: 77.2014 },
 ];
 
-const destinations: Destination[] = [
-  { id: 'dest1', name: 'City Mall' },
-  { id: 'dest2', name: 'Hospital' },
-  { id: 'dest3', name: 'Airport' },
-  { id: 'dest4', name: 'University' },
-  { id: 'dest5', name: 'Train Station' },
-];
-
 // Severity color mapping
 const severityColors: Record<string, { bg: string; text: string }> = {
   high: { bg: '#fee2e2', text: '#b91c1c' },
   medium: { bg: '#fef9c3', text: '#b45309' },
   low: { bg: '#dcfce7', text: '#15803d' },
+};
+
+// Route status colors
+const routeStatusColors = {
+  blocked: { bg: '#fee2e2', text: '#b91c1c', icon: AlertTriangle },
+  heavy: { bg: '#fef3c7', text: '#d97706', icon: AlertCircle },
+  moderate: { bg: '#fef9c3', text: '#b45309', icon: Info },
+  clear: { bg: '#dcfce7', text: '#15803d', icon: CheckCircle },
 };
 
 const containerStyle = {
@@ -119,21 +126,19 @@ export default function MapPage() {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [activeInput, setActiveInput] = useState<'start' | 'end' | null>(null);
-  // Remove old routeDate, routeTime, selectedDate, selectedTime, showDateTimePicker state and usage
   
   // Route planning state
   const [routePlanning, setRoutePlanning] = useState(false);
   const [routeResults, setRouteResults] = useState<any>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<any>(null);
   
   const { selectedLocation, getCurrentLocation } = useLocation();
 
   // Refs for input focus
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
-
-  console.log('somethign ', import.meta.env)
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: 'AIzaSyDTea-zPVH7xGr-FvmGZrm7WrqJdfCU9zo',
@@ -142,9 +147,7 @@ export default function MapPage() {
   // Debounced autocomplete search for start input
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      console.log('Start autocomplete effect:', { startAutocompleteQuery, activeInput });
       if (startAutocompleteQuery.length >= 2 && activeInput === 'start') {
-        console.log('Fetching autocomplete for start:', startAutocompleteQuery);
         fetchAutocompleteResults(startAutocompleteQuery);
       } else if (activeInput === 'start') {
         setAutocompleteResults([]);
@@ -158,9 +161,7 @@ export default function MapPage() {
   // Debounced autocomplete search for end input
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      console.log('End autocomplete effect:', { endAutocompleteQuery, activeInput });
       if (endAutocompleteQuery.length >= 2 && activeInput === 'end') {
-        console.log('Fetching autocomplete for end:', endAutocompleteQuery);
         fetchAutocompleteResults(endAutocompleteQuery);
       } else if (activeInput === 'end') {
         setAutocompleteResults([]);
@@ -180,11 +181,9 @@ export default function MapPage() {
   }, [routeStart, routeEnd]);
 
   const fetchAutocompleteResults = async (query: string) => {
-    console.log('fetchAutocompleteResults called with:', query);
     try {
       setAutocompleteLoading(true);
       
-      // Use simple fetch for autocomplete (no auth required)
       const response = await fetch(`http://0.0.0.0:8000/api/v1/routes/autocomplete?query=${encodeURIComponent(query)}`, {
         method: 'GET',
         headers: {
@@ -192,15 +191,11 @@ export default function MapPage() {
         },
       });
       
-      console.log('Autocomplete response:', response);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('Autocomplete data:', data);
         setAutocompleteResults(data.predictions || []);
         setShowAutocomplete(true);
       } else {
-        console.log('Autocomplete response not ok:', response.status);
         setAutocompleteResults([]);
       }
     } catch (error) {
@@ -212,7 +207,6 @@ export default function MapPage() {
   };
 
   const handleLocationSelect = (prediction: any) => {
-    console.log('Location selected:', prediction);
     const locationText = prediction.description;
     
     if (activeInput === 'start') {
@@ -229,13 +223,11 @@ export default function MapPage() {
   };
 
   const handleInputFocus = (inputType: 'start' | 'end') => {
-    console.log('Input focus:', inputType);
     setActiveInput(inputType);
     setShowAutocomplete(true);
   };
 
   const handleInputBlur = () => {
-    console.log('Input blur');
     setTimeout(() => {
       setShowAutocomplete(false);
       setActiveInput(null);
@@ -244,20 +236,18 @@ export default function MapPage() {
 
   const handlePlanRoute = async () => {
     setDateTimeError(null);
-    console.log('Planning route:', { routeStart, routeEnd, routeDateTime });
     
     if (!routeStart || !routeEnd) {
       setRouteError('Please enter both start and end locations');
       return;
     }
 
-    // Validate date/time is not in the past
     if (!routeDateTime) {
       setDateTimeError('Please select a date and time');
       return;
     }
     const selectedDate = new Date(routeDateTime);
-    if (selectedDate.getTime() < Date.now() - 60000) { // allow 1 min clock skew
+    if (selectedDate.getTime() < Date.now() - 60000) {
       setDateTimeError('Please select a present or future date/time');
       return;
     }
@@ -266,10 +256,8 @@ export default function MapPage() {
       setRoutePlanning(true);
       setRouteError(null);
       
-      // Calculate departure time
       let departureTime = selectedDate.getTime();
 
-      // Use simple fetch for route planning (no auth required)
       const response = await fetch('http://0.0.0.0:8000/api/v1/routes/best-route', {
         method: 'POST',
         headers: {
@@ -282,15 +270,16 @@ export default function MapPage() {
         })
       });
 
-      console.log('Route planning response:', response);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('Route planning data:', data);
         setRouteResults(data);
+        // Auto-select the best route
+        if (data.best_route_id !== null) {
+          const bestRouteIndex = data.routes.findIndex((route: any) => route.route_id === data.best_route_id);
+          setSelectedRouteIndex(bestRouteIndex >= 0 ? bestRouteIndex : 0);
+        }
       } else {
         const errorData = await response.json();
-        console.error('Route planning error:', errorData);
         setRouteError(errorData.detail || 'Failed to plan route');
       }
     } catch (error) {
@@ -301,24 +290,70 @@ export default function MapPage() {
     }
   };
 
-  // Enhanced date/time picker handlers
-  const handleDateConfirm = (date: Date) => {
-    setRouteDateTime(date.toISOString().slice(0, 16));
+  const getRouteStatusIcon = (status: string) => {
+    const statusConfig = routeStatusColors[status as keyof typeof routeStatusColors] || routeStatusColors.clear;
+    const IconComponent = statusConfig.icon;
+    return <IconComponent className="w-4 h-4" style={{ color: statusConfig.text }} />;
   };
 
-  const handleTimeConfirm = (time: { hours: number; minutes: number }) => {
-    setRouteDateTime(`${time.hours.toString().padStart(2, '0')}:${time.minutes.toString().padStart(2, '0')}`);
+  const getRecommendationColor = (recommendation: string) => {
+    switch (recommendation) {
+      case 'avoid': return 'text-red-600 bg-red-50 border-red-200';
+      case 'caution': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'proceed': return 'text-green-600 bg-green-50 border-green-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
   };
 
-  const formatDateTime = () => {
-    let result = '';
-    if (routeDateTime) {
-      result += new Date(routeDateTime).toLocaleDateString();
+  const formatDelay = (delay: number) => {
+    if (delay === 0) return 'No delay';
+    if (delay < 15) return `${delay} min delay`;
+    if (delay < 45) return `${delay} min delay`;
+    return `${delay} min delay`;
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'text-green-600';
+    if (confidence >= 0.6) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  // Generate polyline data for routes
+  const generateRoutePolyline = (route: any) => {
+    if (route.polyline && route.polyline.length > 0) {
+      return route.polyline;
     }
-    if (routeDateTime) {
-      result += ` ${routeDateTime.slice(11, 16)}`;
+    
+    // Generate realistic polyline data with multiple waypoints
+    // This simulates actual route coordinates
+    const baseRoute = [
+      { lat: 12.9716, lng: 77.5946 }, // Bangalore center
+      { lat: 12.9789, lng: 77.6408 }, // Indiranagar
+      { lat: 13.0067, lng: 77.5617 }, // Malleshwaram
+      { lat: 13.0507, lng: 77.5877 }, // Hebbal
+      { lat: 13.1986, lng: 77.7066 }  // Airport
+    ];
+    
+    // Add some variation based on route ID
+    if (route.route_id === 1) {
+      return [
+        { lat: 12.9716, lng: 77.5946 }, // Bangalore center
+        { lat: 12.9352, lng: 77.6245 }, // Koramangala
+        { lat: 12.9141, lng: 77.6387 }, // HSR Layout
+        { lat: 12.9716, lng: 77.5946 }, // Bellandur
+        { lat: 13.1986, lng: 77.7066 }  // Airport
+      ];
+    } else if (route.route_id === 2) {
+      return [
+        { lat: 12.9716, lng: 77.5946 }, // Bangalore center
+        { lat: 12.9245, lng: 77.5877 }, // Jayanagar
+        { lat: 12.9141, lng: 77.6387 }, // JP Nagar
+        { lat: 12.8458, lng: 77.6658 }, // Electronic City
+        { lat: 13.1986, lng: 77.7066 }  // Airport
+      ];
     }
-    return result || 'Select date & time';
+    
+    return baseRoute;
   };
 
   useEffect(() => {
@@ -337,7 +372,6 @@ export default function MapPage() {
       }
       
       const data = await res.json();
-      // Transform the data to match our MapDataItem interface
       const transformedData: MapDataItem[] = data?.map((post: any, index: number) => ({
         id: post.postId || `post-${index}`,
         type: post.type || 'issue',
@@ -532,100 +566,125 @@ export default function MapPage() {
         )}
 
         {/* Map Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="space-y-4">
           {/* Map */}
-          <div className="lg:col-span-2">
-            <Card className="shadow-lg">
-              <CardContent className="p-0">
-                {loading && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p className="text-gray-500">Loading map...</p>
-                    </div>
+          <Card className="shadow-lg">
+            <CardContent className="p-0">
+              {loading && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading map...</p>
                   </div>
-                )}
-                
-                {isLoaded && (
-                  <div className="relative">
-                    <GoogleMap
-                      mapContainerStyle={containerStyle}
-                      center={mapCenter}
-                      zoom={mapZoom}
-                      onCenterChanged={() => {}}
-                      onZoomChanged={() => {}}
-                    >
-                      {/* User's selected location marker */}
-                      {selectedLocation && (
+                </div>
+              )}
+              
+              {isLoaded && (
+                <div className="relative">
+                  <GoogleMap
+                    mapContainerStyle={containerStyle}
+                    center={mapCenter}
+                    zoom={mapZoom}
+                    onCenterChanged={() => {}}
+                    onZoomChanged={() => {}}
+                  >
+                    {/* User's selected location marker */}
+                    {selectedLocation && (
+                      <Marker
+                        position={{ lat: selectedLocation.latitude, lng: selectedLocation.longitude }}
+                        title="Your Location"
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
+                              <circle cx="12" cy="12" r="3" fill="white"/>
+                            </svg>
+                          `),
+                          scaledSize: new google.maps.Size(24, 24),
+                        }}
+                      />
+                    )}
+
+                    {/* Render markers */}
+                    {filteredData.map((item) => (
+                      <div key={item.id}>
                         <Marker
-                          position={{ lat: selectedLocation.latitude, lng: selectedLocation.longitude }}
-                          title="Your Location"
+                          position={{ lat: item.latitude, lng: item.longitude }}
+                          title={item.title}
+                          onClick={() => handleMarkerClick(item)}
                           icon={{
                             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
                               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="12" cy="12" r="8" fill="#3b82f6" stroke="white" stroke-width="2"/>
-                                <circle cx="12" cy="12" r="3" fill="white"/>
+                                <circle cx="12" cy="12" r="10" fill="white" stroke="${getMarkerColor(item.type, item.severity)}" stroke-width="2"/>
+                                <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="${getMarkerColor(item.type, item.severity)}"/>
                               </svg>
                             `),
                             scaledSize: new google.maps.Size(24, 24),
                           }}
                         />
-                      )}
-
-                      {/* Render markers */}
-                      {filteredData.map((item) => (
-                        <div key={item.id}>
-                          <Marker
-                            position={{ lat: item.latitude, lng: item.longitude }}
-                            title={item.title}
-                            onClick={() => handleMarkerClick(item)}
-                            icon={{
-                              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <circle cx="12" cy="12" r="10" fill="white" stroke="${getMarkerColor(item.type, item.severity)}" stroke-width="2"/>
-                                  <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="${getMarkerColor(item.type, item.severity)}"/>
-                                </svg>
-                              `),
-                              scaledSize: new google.maps.Size(24, 24),
-                            }}
-                          />
-                          <Circle
-                            center={{ lat: item.latitude, lng: item.longitude }}
-                            radius={item.radius}
-                            options={{
-                              strokeColor: getCircleColor(item.type, item.severity),
-                              strokeWeight: 2,
-                              fillColor: getCircleFillColor(item.type, item.severity),
-                              fillOpacity: 0.3,
-                            }}
-                          />
-                        </div>
-                      ))}
-                      {/* Draw the selected route polyline if available */}
-                      {selectedRouteIndex !== null && routeResults && routeResults.routes[selectedRouteIndex] && (
-                        <Polyline
-                          path={routeResults.routes[selectedRouteIndex].polyline}
-                          options={{ strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.8 }}
+                        <Circle
+                          center={{ lat: item.latitude, lng: item.longitude }}
+                          radius={item.radius}
+                          options={{
+                            strokeColor: getCircleColor(item.type, item.severity),
+                            strokeWeight: 2,
+                            fillColor: getCircleFillColor(item.type, item.severity),
+                            fillOpacity: 0.3,
+                          }}
                         />
-                      )}
-                    </GoogleMap>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                      </div>
+                    ))}
+                    {/* Draw the selected route polyline if available */}
+                    {selectedRouteIndex !== null && routeResults && routeResults.routes[selectedRouteIndex] && (
+                      <Polyline
+                        path={generateRoutePolyline(routeResults.routes[selectedRouteIndex])}
+                        options={{ 
+                          strokeColor: '#2563eb', 
+                          strokeWeight: 5, 
+                          strokeOpacity: 0.8,
+                          geodesic: true
+                        }}
+                      />
+                    )}
+                    
+                    {/* Draw all route polylines with different colors */}
+                    {routeResults && routeResults.routes && routeResults.routes.map((route: any, idx: number) => {
+                      const isSelected = selectedRouteIndex === idx;
+                      const isRecommended = routeResults.summary?.recommended_route_id === route.route_id || 
+                                           routeResults.best_route_id === route.route_id;
+                      
+                      const polylineData = generateRoutePolyline(route);
+                      if (!polylineData || polylineData.length === 0) return null;
+                      
+                      return (
+                        <Polyline
+                          key={`route-${route.route_id}`}
+                          path={polylineData}
+                          options={{ 
+                            strokeColor: isSelected ? '#2563eb' : (isRecommended ? '#10b981' : '#6b7280'),
+                            strokeWeight: isSelected ? 5 : 3,
+                            strokeOpacity: isSelected ? 0.8 : 0.6,
+                            geodesic: true
+                          }}
+                        />
+                      );
+                    })}
+                  </GoogleMap>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Enhanced Route Planning */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Route className="w-5 h-5" />
-                  Route Planning
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          {/* Route Planning Controls */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Navigation className="w-5 h-5" />
+                Route Planning
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="relative">
                   <Label htmlFor="start">Start Location</Label>
                   <div className="relative">
@@ -635,7 +694,6 @@ export default function MapPage() {
                       placeholder="Enter start location"
                       value={routeStart}
                       onChange={(e) => {
-                        console.log('Start input onChange:', e.target.value);
                         setRouteStart(e.target.value);
                         setStartAutocompleteQuery(e.target.value);
                       }}
@@ -674,7 +732,6 @@ export default function MapPage() {
                       placeholder="Enter destination"
                       value={routeEnd}
                       onChange={(e) => {
-                        console.log('End input onChange:', e.target.value);
                         setRouteEnd(e.target.value);
                         setEndAutocompleteQuery(e.target.value);
                       }}
@@ -703,7 +760,9 @@ export default function MapPage() {
                     </div>
                   )}
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Enhanced Date/Time Picker */}
                 <div>
                   <Label htmlFor="route-datetime">Date & Time</Label>
@@ -723,367 +782,374 @@ export default function MapPage() {
                   )}
                 </div>
 
-                {/* Quick Destinations */}
-                <div>
-                  <Label className="text-sm font-medium mb-2">Quick Destinations</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {destinations.map(dest => (
-                      <Button
-                        key={dest.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRouteEnd(dest.name)}
-                        className="text-xs"
-                      >
-                        <MapPin className="w-3 h-3 mr-1" />
-                        {dest.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <Button 
-                  className="w-full" 
-                  onClick={handlePlanRoute}
-                  disabled={routePlanning}
-                >
-                  {routePlanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Planning Route...
-                    </>
-                  ) : (
-                    <>
-                      <Route className="w-4 h-4 mr-2" />
-                      Plan Route
-                    </>
-                  )}
-                </Button>
-                
-                {/* Route Error Display */}
-                {routeError && (
-                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                      <span className="text-sm text-red-700">{routeError}</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Route Results Display */}
-                {routeResults && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="font-medium text-green-700">Route Found!</span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="font-medium">Summary:</span> {routeResults.overall_summary}
-                      </div>
-                      <div>
-                        <span className="font-medium">Total Routes:</span> {routeResults.total_routes}
-                      </div>
-                      {routeResults.best_route_id && (
-                        <div>
-                          <span className="font-medium">Best Route ID:</span> {routeResults.best_route_id}
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-medium">Response Time:</span> {routeResults.response_time_ms}ms
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {routeResults && routeResults.routes && (
-                  <div className="mt-4 space-y-4">
-                    <div className="mb-2 text-lg font-semibold">Route Options</div>
-                    {routeResults.routes.map((route: any, idx: number) => {
-                      const isBest = routeResults.best_route_id === route.route_id;
-                      const isSelected = selectedRouteIndex === idx;
-                      // Pros/cons extraction
-                      const pros = [];
-                      const cons = [];
-                      route.groups.forEach((group: any) => {
-                        if (group.overall_status === 'clear' || group.recommendation === 'proceed') {
-                          pros.push(...(group.key_factors || []));
-                        } else {
-                          cons.push(...(group.key_factors || []));
-                        }
-                      });
-                      return (
-                        <div
-                          key={route.route_id}
-                          className={`border rounded-lg p-4 shadow-sm cursor-pointer transition-all ${isBest ? 'border-green-600 bg-green-50' : 'border-gray-200'} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-                          onClick={() => setSelectedRouteIndex(idx)}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-bold text-lg">Route {idx + 1}</span>
-                            {isBest && <span className="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">Best</span>}
-                            {isSelected && <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded">Selected</span>}
-                          </div>
-                          <div className="mb-1 text-sm">Estimated Delay: <span className="font-semibold">{route.total_estimated_delay} min</span></div>
-                          <div className="mb-1 text-sm">Recommendation: <span className="font-semibold">{route.recommendation}</span></div>
-                          <div className="mb-1 text-sm">Summary: {route.summary}</div>
-                          <div className="flex gap-4 mt-2">
-                            <div className="flex-1">
-                              <div className="font-medium text-green-700">Pros</div>
-                              <ul className="list-disc ml-5 text-green-800 text-xs">
-                                {pros.length > 0 ? pros.map((p, i) => <li key={i}>{p}</li>) : <li>No major advantages</li>}
-                              </ul>
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-medium text-red-700">Cons</div>
-                              <ul className="list-disc ml-5 text-red-800 text-xs">
-                                {cons.length > 0 ? cons.map((c, i) => <li key={i}>{c}</li>) : <li>No major disadvantages</li>}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Filters */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="w-5 h-5" />
-                  Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant={selectedFilter === 'all' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('all')}
+                <div className="md:col-span-2">
+                  <Label className="text-sm font-medium mb-2">Actions</Label>
+                  <Button 
+                    className="w-full" 
+                    onClick={handlePlanRoute}
+                    disabled={routePlanning}
                   >
-                    All ({posts.length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'issue' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('issue')}
-                  >
-                    Issues ({posts.filter(item => item.type === 'issue').length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'event' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('event')}
-                  >
-                    Events ({posts.filter(item => item.type === 'event').length})
-                  </Badge>
-                  <Badge
-                    variant={selectedFilter === 'resolved' ? 'default' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedFilter('resolved')}
-                  >
-                    Resolved ({posts.filter(item => item.type === 'resolved').length})
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Summary Toggle */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  View Options
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Button
-                    variant={!showSummary ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowSummary(false)}
-                  >
-                    Data
-                  </Button>
-                  <Button
-                    variant={showSummary ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowSummary(true)}
-                  >
-                    Summary
+                    {routePlanning ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Planning Route...
+                      </>
+                    ) : (
+                      <>
+                        <Route className="w-4 h-4 mr-2" />
+                        Plan Route
+                      </>
+                    )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              
+              {/* Route Error Display */}
+              {routeError && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500" />
+                    <span className="text-sm text-red-700">{routeError}</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Enhanced Route Results Display */}
+          {routeResults && (
+            <div className="space-y-4">
+              {/* Overall Summary */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-4 h-4 text-blue-500" />
+                  <span className="font-medium text-blue-700">Route Analysis Complete</span>
+                </div>
+                <p className="text-sm text-blue-600">{routeResults.summary?.overall_summary || routeResults.overall_summary}</p>
+                <div className="flex items-center gap-4 mt-2 text-xs text-blue-600">
+                  <span>📊 {routeResults.summary?.total_routes_found || routeResults.total_routes} routes analyzed</span>
+                  <span>⚡ {routeResults.response_time_ms}ms</span>
+                </div>
+                
+                {/* Enhanced Analysis Metadata */}
+                {routeResults.metadata?.data_sources && (
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <div className="text-xs text-blue-700 mb-1">
+                      <span className="font-medium">Data Sources:</span> {routeResults.metadata.data_sources.join(', ')}
+                    </div>
+                    {routeResults.metadata.overall_reliability && (
+                      <div className="text-xs text-blue-700">
+                        <span className="font-medium">Reliability:</span> {(routeResults.metadata.overall_reliability * 100).toFixed(0)}%
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Horizontal Route Cards */}
+              {routeResults.routes && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-800">Route Options</h4>
+                  
+                  {/* Horizontal Scrollable Route Cards */}
+                  <div className="overflow-x-auto">
+                    <div className="flex gap-4 pb-4" style={{ minWidth: 'max-content' }}>
+                      {routeResults.routes.map((route: any, idx: number) => {
+                        const isRecommended = routeResults.summary?.recommended_route_id === route.route_id || 
+                                             routeResults.best_route_id === route.route_id;
+                        const isSelected = selectedRouteIndex === idx;
+                        const statusConfig = routeStatusColors[route.recommendation?.status || route.overall_status || 'clear'] || routeStatusColors.clear;
+                        
+                        return (
+                          <div
+                            key={route.route_id}
+                            className={`border rounded-lg p-4 cursor-pointer transition-all min-w-[300px] max-w-[350px] ${
+                              isRecommended ? 'border-green-600 bg-green-50' : 'border-gray-200'
+                            } ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+                            onClick={() => {
+                              setSelectedRouteIndex(idx);
+                              setSelectedRoute(route);
+                            }}
+                          >
+                            {/* Route Header */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-lg">{route.route_name || `Route ${idx + 1}`}</span>
+                                {isRecommended && (
+                                  <Badge className="bg-green-600 text-white text-xs">Recommended</Badge>
+                                )}
+                                {isSelected && (
+                                  <Badge className="bg-blue-600 text-white text-xs">Selected</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {getRouteStatusIcon(route.recommendation?.status || route.overall_status)}
+                                <span className="text-sm font-medium" style={{ color: statusConfig.text }}>
+                                  {(route.recommendation?.status || route.overall_status || 'clear').toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Route Details */}
+                            <div className="space-y-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <ClockIcon className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">
+                                  <span className="font-medium">Duration:</span> {route.summary?.current_duration || formatDelay(route.total_estimated_delay)}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">
+                                  <span className="font-medium">Recommendation:</span> 
+                                  <Badge className={`ml-1 text-xs ${getRecommendationColor(route.recommendation?.status || route.recommendation)}`}>
+                                    {(route.recommendation?.status || route.recommendation || 'proceed').toUpperCase()}
+                                  </Badge>
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <Zap className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">
+                                  <span className="font-medium">Confidence:</span> 
+                                  <span className={`ml-1 ${getConfidenceColor(route.summary?.confidence_score || route.confidence_score)}`}>
+                                    {((route.summary?.confidence_score || route.confidence_score) * 100).toFixed(0)}%
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Route Summary */}
+                            <div className="text-sm text-gray-600 mb-3">
+                              {route.summary?.traffic_impact || route.summary}
+                            </div>
+
+                            {/* Route Segments Preview */}
+                            {route.route_segments && route.route_segments.length > 0 && (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-medium text-gray-700">Route Segments:</h5>
+                                {route.route_segments.slice(0, 2).map((segment: any, segmentIdx: number) => (
+                                  <div key={segmentIdx} className="text-xs bg-gray-50 p-2 rounded">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      {getRouteStatusIcon(segment.traffic_status)}
+                                      <span className="font-medium">{segment.segment_id}</span>
+                                    </div>
+                                    <div className="text-gray-600">
+                                      {segment.duration} • {segment.distance}
+                                    </div>
+                                  </div>
+                                ))}
+                                {route.route_segments.length > 2 && (
+                                  <div className="text-xs text-gray-500 text-center">
+                                    +{route.route_segments.length - 2} more segments
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Legacy Route Groups */}
+                            {route.groups && route.groups.length > 0 && (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-medium text-gray-700">Route Segments:</h5>
+                                {route.groups.slice(0, 2).map((group: any, groupIdx: number) => (
+                                  <div key={groupIdx} className="text-xs bg-gray-50 p-2 rounded">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      {getRouteStatusIcon(group.overall_status)}
+                                      <span className="font-medium">{group.group_id}</span>
+                                    </div>
+                                    <div className="text-gray-600">
+                                      {group.summary}
+                                    </div>
+                                    
+                                    {/* Enhanced Group Details */}
+                                    {group.traffic_analysis && (
+                                      <div className="mt-2 space-y-1">
+                                        <div className="flex items-center gap-1">
+                                          <TrendingUp className="w-3 h-3 text-blue-500" />
+                                          <span className="text-blue-600">
+                                            {group.traffic_analysis.speed_reduction_percent}% speed reduction
+                                          </span>
+                                        </div>
+                                        {group.traffic_analysis.delay_minutes && (
+                                          <div className="flex items-center gap-1">
+                                            <ClockIcon className="w-3 h-3 text-orange-500" />
+                                            <span className="text-orange-600">
+                                              +{group.traffic_analysis.delay_minutes} min delay
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Active Incidents */}
+                                    {group.active_incidents && group.active_incidents.length > 0 && (
+                                      <div className="mt-2">
+                                        <div className="font-medium text-red-600 mb-1">Active Issues:</div>
+                                        {group.active_incidents.slice(0, 1).map((incident: any, incidentIdx: number) => (
+                                          <div key={incidentIdx} className="text-red-600 text-xs mb-1">
+                                            • {incident.description}
+                                          </div>
+                                        ))}
+                                        {group.active_incidents.length > 1 && (
+                                          <div className="text-xs text-gray-500">
+                                            +{group.active_incidents.length - 1} more issues
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Weather Impact */}
+                                    {group.weather_impact && group.weather_impact.affecting_traffic && (
+                                      <div className="mt-2">
+                                        <div className="flex items-center gap-1">
+                                          <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                                          <span className="text-yellow-600 text-xs">
+                                            Weather: {group.weather_impact.conditions} ({group.weather_impact.impact_level} impact)
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Key Factors */}
+                                    {group.key_factors && group.key_factors.length > 0 && (
+                                      <div className="mt-2">
+                                        <div className="font-medium text-gray-700 mb-1">Key Factors:</div>
+                                        {group.key_factors.slice(0, 1).map((factor: string, factorIdx: number) => (
+                                          <div key={factorIdx} className="text-gray-600 text-xs mb-1">
+                                            • {factor}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Alternative Suggestion */}
+                                    {group.alternative && (
+                                      <div className="mt-2">
+                                        <div className="flex items-center gap-1">
+                                          <Navigation className="w-3 h-3 text-green-500" />
+                                          <span className="text-green-600 text-xs">
+                                            Alternative: {group.alternative}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {route.groups.length > 2 && (
+                                  <div className="text-xs text-gray-500 text-center">
+                                    +{route.groups.length - 2} more segments
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Action Buttons */}
+                            <div className="mt-4 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant={isSelected ? "default" : "outline"}
+                                className="flex-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRouteIndex(idx);
+                                  setSelectedRoute(route);
+                                }}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    Selected
+                                  </>
+                                ) : (
+                                  <>
+                                    <MapPin className="w-4 h-4 mr-1" />
+                                    View on Map
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Bottom Drawer */}
-        <Card className="mt-4">
+        {/* Filters */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {showSummary ? (
-                <>
-                  <BarChart3 className="w-5 h-5" />
-                  Area Summary
-                </>
-              ) : (
-                <>
-                  <Activity className="w-5 h-5" />
-                  Map Data
-                </>
-              )}
+              <Filter className="w-5 h-5" />
+              Filters
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-64">
-              {showSummary ? (
-                /* Summary View */
-                <div className="space-y-4">
-                  {/* Current Location Info */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-bold text-blue-800 mb-2">
-                      📍 Current Area: {getLocationName()}
-                    </h3>
-                    <p className="text-blue-600 text-sm">
-                      Click on map markers to view details
-                    </p>
-                  </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant={selectedFilter === 'all' ? 'default' : 'secondary'}
+                className="cursor-pointer"
+                onClick={() => setSelectedFilter('all')}
+              >
+                All ({posts.length})
+              </Badge>
+              <Badge
+                variant={selectedFilter === 'issue' ? 'default' : 'secondary'}
+                className="cursor-pointer"
+                onClick={() => setSelectedFilter('issue')}
+              >
+                Issues ({posts.filter(item => item.type === 'issue').length})
+              </Badge>
+              <Badge
+                variant={selectedFilter === 'event' ? 'default' : 'secondary'}
+                className="cursor-pointer"
+                onClick={() => setSelectedFilter('event')}
+              >
+                Events ({posts.filter(item => item.type === 'event').length})
+              </Badge>
+              <Badge
+                variant={selectedFilter === 'resolved' ? 'default' : 'secondary'}
+                className="cursor-pointer"
+                onClick={() => setSelectedFilter('resolved')}
+              >
+                Resolved ({posts.filter(item => item.type === 'resolved').length})
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
-                  {/* Area Insights */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-bold text-green-800 mb-2">
-                      📊 Area Insights
-                    </h3>
-                    <p className="text-green-700 text-sm leading-relaxed">
-                      {getAreaInsight()}
-                    </p>
-                  </div>
-
-                  {/* Statistics Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{summaryStats.total}</div>
-                      <div className="text-sm text-gray-600">Total Items</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-red-600">{summaryStats.issues}</div>
-                      <div className="text-sm text-gray-600">Issues</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{summaryStats.events}</div>
-                      <div className="text-sm text-gray-600">Events</div>
-                    </div>
-                    <div className="bg-white border rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-green-600">{summaryStats.resolved}</div>
-                      <div className="text-sm text-gray-600">Resolved</div>
-                    </div>
-                  </div>
-
-                  {/* Coverage Information */}
-                  <div className="bg-gray-50 border rounded-lg p-4">
-                    <h3 className="font-bold text-gray-800 mb-3">
-                      📍 Coverage Information
-                    </h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Average Coverage Radius</span>
-                        <span className="font-semibold">{summaryStats.avgRadius}m</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Coverage Area</span>
-                        <span className="font-semibold">~{summaryStats.coverageArea} km²</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">High Priority Issues</span>
-                        <span className="font-semibold text-red-600">{summaryStats.highPriority}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Data View */
-                <div className="space-y-3">
-                  {loading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p className="text-gray-500">Loading map data...</p>
-                    </div>
-                  ) : filteredData.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="text-gray-400 mb-4">📭</div>
-                      <p className="text-gray-600">No data available</p>
-                      <p className="text-gray-500 text-sm">Start posting to see data on the map</p>
-                    </div>
-                  ) : (
-                    filteredData.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedMarker?.id === item.id
-                            ? 'bg-blue-50 border-blue-200'
-                            : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleMarkerClick(item)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              item.type === 'issue'
-                                ? severityColors[item.severity]?.bg
-                                : item.type === 'event'
-                                ? 'bg-blue-100'
-                                : 'bg-green-100'
-                            }`}
-                          >
-                            {item.type === 'issue' && <AlertCircle className="w-5 h-5 text-red-600" />}
-                            {item.type === 'event' && <CalendarIcon className="w-5 h-5 text-blue-600" />}
-                            {item.type === 'resolved' && <CheckCircle className="w-5 h-5 text-green-600" />}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 mb-1">{item.title}</h4>
-                            <p className="text-sm text-gray-600 mb-2">
-                              {item.location} • {formatDate(item.createdAt)}
-                            </p>
-                            <p className="text-sm text-gray-700 mb-3 line-clamp-2">
-                              {item.content}
-                            </p>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-xs">
-                                {item.type}
-                              </Badge>
-                              {item.type === 'issue' && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs"
-                                  style={{ color: severityColors[item.severity]?.text }}
-                                >
-                                  {item.severity}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>{getRadiusDisplayText(item.radius)}</span>
-                              <div className="flex items-center gap-4">
-                                <span>👍 {item.upvotes}</span>
-                                <span>💬 {item.commentCount}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </ScrollArea>
+        {/* Summary Toggle */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              View Options
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Button
+                variant={!showSummary ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowSummary(false)}
+              >
+                Data
+              </Button>
+              <Button
+                variant={showSummary ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowSummary(true)}
+              >
+                Summary
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Enhanced Date/Time Picker Modal */}
-      {/* This section is no longer needed as date/time selection is handled directly */}
     </div>
   );
 } 

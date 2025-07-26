@@ -1,4 +1,4 @@
-from google import genai
+import google.generativeai as genai
 from google.genai import types
 from .post_feed_utils.prompt_creator import (
     create_analysis_prompt, 
@@ -19,7 +19,8 @@ def set_gemini_output_injson(output):
   
 class GeminiModel:
     def __init__(self, api_key) -> None:
-        self.client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
+        self.client = genai
         #Define the grounding tool
         grounding_tool = types.Tool(
             google_search=types.GoogleSearch()
@@ -44,11 +45,11 @@ class GeminiModel:
         if task not in self.task_prompt_creator:
             raise ValueError(f"{task} is not supported. Supported tasks are {self.task_prompt_creator.keys()}")
         input_prompt = self.task_prompt_creator[task](kwargs)
-        response = self.client.models.generate_content(
-                                                model=gemini_model_type,
-                                                contents=input_prompt,
-                                                config = self.config if google_search else None
-                                                )
+        model = self.client.GenerativeModel(gemini_model_type)
+        response = model.generate_content(
+            input_prompt,
+            generation_config=self.config if google_search else None
+        )
         return set_gemini_output_injson(response.text)
 
 

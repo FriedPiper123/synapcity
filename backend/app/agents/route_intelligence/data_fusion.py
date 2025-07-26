@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
-from google import genai
+import google.generativeai as genai
 
 class DataFusion:
     def __init__(self, gemini_api_key: str):
@@ -12,7 +12,8 @@ class DataFusion:
         Initialize the data fusion engine
         """
         self.gemini_api_key = gemini_api_key
-        self.client = genai.Client(api_key=self.gemini_api_key)
+        genai.configure(api_key=self.gemini_api_key)
+        self.client = genai
 
     def create_user_prompt(self, combined_insights: Dict) -> str:
         """
@@ -207,10 +208,8 @@ Prioritize real-time data (TomTom flow, recent user reports) over historical pat
         system_prompt = self.create_system_prompt()
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         try:
-            response = self.client.models.generate_content(
-                model='gemini-2.5-flash-lite',
-                contents=full_prompt
-            )
+            model = self.client.GenerativeModel('gemini-2.5-flash-lite')
+            response = model.generate_content(full_prompt)
             return {"fused_result": response.text}
         except Exception as e:
             logger.error(f"Gemini fusion failed: {e}")
