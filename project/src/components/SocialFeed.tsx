@@ -98,10 +98,10 @@ export const SocialFeed = ({
 
       if (currentLocation) {
         // Use location-based posts API
-        res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=${radiusKm}`);
+        res = await apiFetch(`/api/v1/posts/nearby?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=${radiusKm}`);
       } else {
         // Fallback to neighborhood posts if location is not available
-        res = await apiFetch('http://0.0.0.0:8000/api/v1/posts/Downtown');
+        res = await apiFetch('/api/v1/posts/Downtown');
       }
       
       const data = await res.json();
@@ -115,7 +115,7 @@ export const SocialFeed = ({
   const handleUpvote = async (postId: string) => {
     setLikedPosts(prev => ({ ...prev, [postId]: !prev[postId] }));
     try {
-      await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/upvote`, {
+      await apiFetch(`/api/v1/posts/${postId}/upvote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -128,7 +128,7 @@ export const SocialFeed = ({
   const fetchComments = async (postId: string) => {
     setCommentLoading((prev) => ({ ...prev, [postId]: true }));
     try {
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/comments?limit=20`);
+      const res = await apiFetch(`/api/v1/posts/${postId}/comments?limit=20`);
       const data = await res.json();
       setComments((prev) => ({ ...prev, [postId]: data || [] }));
     } catch (err) {
@@ -149,7 +149,7 @@ export const SocialFeed = ({
     setCommentLoading((prev) => ({ ...prev, [postId]: true }));
     setCommentError((prev) => ({ ...prev, [postId]: null }));
     try {
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/comments`, {
+      const res = await apiFetch(`/api/v1/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: commentText[postId] }),
@@ -207,7 +207,7 @@ export const SocialFeed = ({
         geohash: null
       };
 
-      const res = await apiFetch('http://0.0.0.0:8000/api/v1/posts', {
+      const res = await apiFetch('/api/v1/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(postData),

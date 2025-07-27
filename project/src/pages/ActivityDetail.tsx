@@ -98,7 +98,7 @@ export default function ActivityDetail() {
       };
 
       const response = await apiFetch(
-        `http://0.0.0.0:8000/api/v1/dashboard/activity/enhance`,
+        `/api/v1/dashboard/activity/enhance`,
         {
           method: 'POST',
           headers: {
@@ -143,7 +143,7 @@ export default function ActivityDetail() {
 
       // If not found in context, fetch from API
       const activitiesResponse = await apiFetch(
-        `http://0.0.0.0:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+        `/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
       
       if (!activitiesResponse.ok) {

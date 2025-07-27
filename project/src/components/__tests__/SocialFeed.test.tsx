@@ -80,7 +80,7 @@ describe('SocialFeed', () => {
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
-        'http://0.0.0.0:8000/api/v1/posts/1/upvote',
+        '/api/v1/posts/1/upvote',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -148,7 +148,7 @@ describe('SocialFeed', () => {
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
-        'http://0.0.0.0:8000/api/v1/posts/1/comments',
+        '/api/v1/posts/1/comments',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
