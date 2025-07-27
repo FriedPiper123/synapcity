@@ -877,7 +877,7 @@ export default function MapPage() {
 
   useEffect(() => {
     fetchPosts();
-  }, [selectedLocation]);
+  }, [selectedLocation, currentLocation]);
 
   // Auto-center map on current location when first obtained (if no routes are displayed)
   useEffect(() => {
@@ -899,13 +899,17 @@ export default function MapPage() {
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      let res;
+      // Use selectedLocation if available, otherwise use currentLocation
+      const location = selectedLocation || currentLocation;
       
-      if (selectedLocation) {
-        res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`);
-      } else {
-        res = await apiFetch('http://0.0.0.0:8000/api/v1/posts/?limit=100');
+      if (!location) {
+        // No location available, set empty array and return
+        setPosts([]);
+        setLoading(false);
+        return;
       }
+      
+      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${location.latitude}&longitude=${location.longitude}&radius_km=5.0`);
       
       const data = await res.json();
       const transformedData: MapDataItem[] = data?.map((post: any, index: number) => ({
@@ -2014,34 +2018,6 @@ export default function MapPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Summary Toggle */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              View Options
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Button
-                variant={!showSummary ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setShowSummary(false)}
-              >
-                Data
-              </Button>
-              <Button
-                variant={showSummary ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setShowSummary(true)}
-              >
-                Summary
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
