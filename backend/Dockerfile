@@ -22,10 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# # Create credentials directory and copy service account key
-# RUN mkdir -p /app/credentials
-# COPY credentials/serviceAccountKey.json /app/credentials/
-
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app

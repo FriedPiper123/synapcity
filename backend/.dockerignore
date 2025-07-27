@@ -30,6 +30,3 @@ traffic_analyzer.log
 
 # Git directory
 .git/
-
-# Keep .env in ignore list since we'll pass env vars via command line
-.env
