@@ -1290,7 +1290,7 @@ export default function MapPage() {
                             scaledSize: new google.maps.Size(24, 24),
                           }}
                         />
-                        <Circle
+                        {/* <Circle
                           center={{ lat: item.latitude, lng: item.longitude }}
                           radius={item.radius}
                           options={{
@@ -1300,7 +1300,7 @@ export default function MapPage() {
                             fillOpacity: 0.3,
                             clickable: false,
                           }}
-                        />
+                        /> */}
                       </div>
                     ))}
                     {/* Draw the selected route polyline if available */}
