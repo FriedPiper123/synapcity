@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  synapcity-backend:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      # Optional: Mount credentials if not baked into image
+      - ./credentials:/app/credentials:ro
+    environment:
+      - PORT=8080
