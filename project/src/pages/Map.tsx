@@ -158,11 +158,13 @@ type MapDataItem = {
 
 // New types for heatmap data
 type HeatmapPolygon = {
-  postId: string;
+  groupId: string;
   coordinates: Array<{ lat: number; lng: number }>;
   severity: 'high' | 'medium' | 'low';
   category: string;
   title: string;
+  postIds: string[];
+  postCount: number;
 };
 
 type HeatmapData = {
@@ -274,6 +276,10 @@ export default function MapPage() {
   const [showLocationChangeDialog, setShowLocationChangeDialog] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<{lat: number, lng: number} | null>(null);
   const [isChangingLocation, setIsChangingLocation] = useState(false);
+
+  // Polygon info state
+  const [selectedPolygon, setSelectedPolygon] = useState<HeatmapPolygon | null>(null);
+  const [showPolygonInfo, setShowPolygonInfo] = useState(false);
 
   const { selectedLocation, currentLocation, getCurrentLocation, isLoading: locationLoading, setCurrentLocationManually } = useLocation();
 
@@ -720,6 +726,12 @@ export default function MapPage() {
     setPendingLocation(null);
   };
 
+  // Handle polygon click to show connected issues info
+  const handlePolygonClick = (polygon: HeatmapPolygon) => {
+    setSelectedPolygon(polygon);
+    setShowPolygonInfo(true);
+  };
+
   const fetchHeatmapData = async () => {
     if (!currentLocation) {
       setHeatmapError('Current location not available');
@@ -766,6 +778,13 @@ export default function MapPage() {
         };
         
         setHeatmapData(transformedData);
+        console.log('🗺️ Heatmap data received:', transformedData);
+        console.log('🔺 Issue polygons:', transformedData.issue_polygons);
+        console.log('📊 Total polygons:', 
+          transformedData.issue_polygons.high.length + 
+          transformedData.issue_polygons.medium.length + 
+          transformedData.issue_polygons.low.length
+        );
       } else {
         const errorData = await response.json();
         setHeatmapError(errorData.detail || 'Failed to fetch heatmap data');
@@ -785,29 +804,29 @@ export default function MapPage() {
     setShowHeatmap(!showHeatmap);
   };
 
-  // Get polygon colors based on severity
+  // Get polygon colors based on severity - using red color overlay as requested
   const getPolygonOptions = (severity: 'high' | 'medium' | 'low') => {
     const severityOptions = {
       high: {
-        fillColor: '#dc2626',
+        fillColor: '#dc2626',  // Strong red for high severity
+        fillOpacity: 0.5,
+        strokeColor: '#b91c1c',
+        strokeWeight: 3,
+        strokeOpacity: 0.9
+      },
+      medium: {
+        fillColor: '#dc2626',  // Red for medium severity
         fillOpacity: 0.4,
         strokeColor: '#b91c1c',
         strokeWeight: 2,
         strokeOpacity: 0.8
       },
-      medium: {
-        fillColor: '#ea580c',
-        fillOpacity: 0.35,
-        strokeColor: '#c2410c',
+      low: {
+        fillColor: '#dc2626',  // Light red for low severity
+        fillOpacity: 0.3,
+        strokeColor: '#b91c1c',
         strokeWeight: 2,
         strokeOpacity: 0.7
-      },
-      low: {
-        fillColor: '#facc15',
-        fillOpacity: 0.3,
-        strokeColor: '#eab308',
-        strokeWeight: 1,
-        strokeOpacity: 0.6
       }
     };
     return severityOptions[severity];
@@ -880,6 +899,23 @@ export default function MapPage() {
       fetchHeatmapData();
     }
   }, [currentLocation, showHeatmap]);
+
+  // Debug polygon rendering
+  useEffect(() => {
+    if (showHeatmap && heatmapData) {
+      console.log('🔥 Polygon rendering debug:', {
+        showHeatmap,
+        selectedFilter,
+        shouldRender: (selectedFilter === 'all' || selectedFilter === 'issue'),
+        polygonCounts: {
+          high: heatmapData.issue_polygons?.high?.length || 0,
+          medium: heatmapData.issue_polygons?.medium?.length || 0,
+          low: heatmapData.issue_polygons?.low?.length || 0
+        },
+        firstLowPolygon: heatmapData.issue_polygons?.low?.[0]
+      });
+    }
+  }, [showHeatmap, heatmapData, selectedFilter]);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -1058,7 +1094,7 @@ export default function MapPage() {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
             <p className="text-sm text-gray-500 mt-1">
-              💡 Click anywhere on the map to change your current location
+              💡 Click anywhere on the map to change your current location | Red polygons connect similar issues
             </p>
           </div>
           
@@ -1384,17 +1420,18 @@ export default function MapPage() {
                     </div>
 
                                          {/* Issue Polygons */}
-                     {showHeatmap && heatmapData && heatmapData.issue_polygons && (selectedFilter === 'all' || selectedFilter === 'issue') && (
+                     {showHeatmap && heatmapData && heatmapData.issue_polygons && (selectedFilter === 'all' || selectedFilter === 'issue') ? (
                        <>
+                         {/* Debug info logged in useEffect */}
                          {heatmapData.issue_polygons.high.map((polygon, index) => (
                            <Polygon
                              key={`high-issue-polygon-${index}`}
                              paths={polygon.coordinates}
                              options={{
                                ...getPolygonOptions('high'),
-                               fillOpacity: 0.3,
-                               clickable: false,
+                               clickable: true,
                              }}
+                             onClick={() => handlePolygonClick(polygon)}
                            />
                          ))}
                          {heatmapData.issue_polygons.medium.map((polygon, index) => (
@@ -1403,9 +1440,9 @@ export default function MapPage() {
                              paths={polygon.coordinates}
                              options={{
                                ...getPolygonOptions('medium'),
-                               fillOpacity: 0.3,
-                               clickable: false,
+                               clickable: true,
                              }}
+                             onClick={() => handlePolygonClick(polygon)}
                            />
                          ))}
                          {heatmapData.issue_polygons.low.map((polygon, index) => (
@@ -1414,13 +1451,13 @@ export default function MapPage() {
                              paths={polygon.coordinates}
                              options={{
                                ...getPolygonOptions('low'),
-                               fillOpacity: 0.3,
-                               clickable: false,
+                               clickable: true,
                              }}
+                             onClick={() => handlePolygonClick(polygon)}
                            />
                          ))}
                        </>
-                     )}
+                     ) : null}
 
                                          {/* Heatmap Markers */}
                      {showHeatmap && heatmapData && filteredData.length > 0 && (
@@ -1971,23 +2008,38 @@ export default function MapPage() {
                   </div>
                 </div>
 
-                {/* Severity Legend */}
+                {/* Unified Polygon Legend */}
                 <div className="space-y-2">
-                  <div className="text-sm font-medium text-gray-700">Issue Severity Legend</div>
+                  <div className="text-sm font-medium text-gray-700">Connected Issue Areas</div>
+                  <div className="text-xs text-gray-600 mb-2">
+                    Red polygons directly connect similar issue coordinates
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <div className="flex items-center gap-2 text-xs">
+                      <div className="w-4 h-4 bg-red-600 rounded opacity-50"></div>
+                      <span>High Severity Areas ({heatmapData.issue_polygons.high.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
                       <div className="w-4 h-4 bg-red-600 rounded opacity-40"></div>
-                      <span>High Severity ({heatmapData.issue_polygons.high.length})</span>
+                      <span>Medium Severity Areas ({heatmapData.issue_polygons.medium.length})</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
-                      <div className="w-4 h-4 bg-orange-600 rounded opacity-35"></div>
-                      <span>Medium Severity ({heatmapData.issue_polygons.medium.length})</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="w-4 h-4 bg-yellow-500 rounded opacity-30"></div>
-                      <span>Low Severity ({heatmapData.issue_polygons.low.length})</span>
+                      <div className="w-4 h-4 bg-red-600 rounded opacity-30"></div>
+                      <span>Low Severity Areas ({heatmapData.issue_polygons.low.length})</span>
                     </div>
                   </div>
+                  {/* Show total posts in polygons */}
+                  {(heatmapData.issue_polygons.high.length > 0 || 
+                    heatmapData.issue_polygons.medium.length > 0 || 
+                    heatmapData.issue_polygons.low.length > 0) && (
+                    <div className="text-xs text-gray-500 mt-2">
+                      Total connected posts: {
+                        [...heatmapData.issue_polygons.high, 
+                         ...heatmapData.issue_polygons.medium, 
+                         ...heatmapData.issue_polygons.low].reduce((sum, polygon) => sum + polygon.postCount, 0)
+                      }
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-xs text-gray-500">
@@ -2068,6 +2120,58 @@ export default function MapPage() {
                     Update Location
                   </>
                 )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Polygon Info Dialog */}
+        <AlertDialog open={showPolygonInfo} onOpenChange={setShowPolygonInfo}>
+          <AlertDialogContent className="max-w-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Connected Issue Area
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {selectedPolygon && (
+                  <div className="space-y-3">
+                    <div>
+                      <strong>{selectedPolygon.title}</strong>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Category:</span>
+                        <div className="font-medium capitalize">{selectedPolygon.category}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Severity:</span>
+                        <div className={`font-medium capitalize ${
+                          selectedPolygon.severity === 'high' ? 'text-red-600' :
+                          selectedPolygon.severity === 'medium' ? 'text-orange-600' : 'text-yellow-600'
+                        }`}>
+                          {selectedPolygon.severity}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Connected Posts:</span>
+                        <div className="font-medium">{selectedPolygon.postCount}</div>
+                      </div>
+                    </div>
+                                         <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                       <strong>Connected Area:</strong> This red polygon directly connects {selectedPolygon.postCount} similar {selectedPolygon.category} issues by their exact coordinates. The shape shows the geographic spread of related incidents.
+                     </div>
+                    <div className="text-xs text-gray-600">
+                      <strong>Post IDs:</strong> {selectedPolygon.postIds.slice(0, 5).join(', ')}
+                      {selectedPolygon.postIds.length > 5 && ` +${selectedPolygon.postIds.length - 5} more`}
+                    </div>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setShowPolygonInfo(false)}>
+                Close
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

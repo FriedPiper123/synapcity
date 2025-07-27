@@ -366,3 +366,122 @@ def create_issue_area_polygon(latitude: float, longitude: float, precision: int 
     center_geohash = encode_geohash(latitude, longitude, precision)
     affected_geohashes = get_geohash_4th_level_neighbors(center_geohash)
     return get_geohash_polygon_coords(affected_geohashes) 
+
+def create_unified_issue_polygon(coordinates: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    """
+    Create a unified polygon that directly connects issue coordinates.
+    Creates a closed shape by connecting the actual issue points.
+    
+    Args:
+        coordinates: List of (latitude, longitude) tuples
+    
+    Returns:
+        List of (latitude, longitude) tuples forming a closed polygon
+    """
+    if not coordinates or len(coordinates) == 0:
+        return []
+    
+    if len(coordinates) == 1:
+        # Single point - create a small circle around it
+        lat, lon = coordinates[0]
+        buffer = 0.001  # approximately 100 meters
+        return [
+            (lat - buffer, lon - buffer),
+            (lat - buffer, lon + buffer),
+            (lat + buffer, lon + buffer),
+            (lat + buffer, lon - buffer)
+        ]
+    
+    if len(coordinates) == 2:
+        # Two points - create a simple buffer around the line
+        lat1, lon1 = coordinates[0]
+        lat2, lon2 = coordinates[1]
+        
+        buffer = 0.0015  # approximately 150 meters
+        
+        # Create a rectangle connecting both points
+        min_lat = min(lat1, lat2) - buffer
+        max_lat = max(lat1, lat2) + buffer
+        min_lon = min(lon1, lon2) - buffer
+        max_lon = max(lon1, lon2) + buffer
+        
+        return [
+            (min_lat, min_lon),
+            (min_lat, max_lon),
+            (max_lat, max_lon),
+            (max_lat, min_lon)
+        ]
+    
+    # Multiple points - directly connect them using convex hull
+    points = [(lat, lon) for lat, lon in coordinates]
+    
+    # Remove duplicates
+    unique_points = []
+    seen = set()
+    for point in points:
+        # Round to avoid floating point precision issues
+        rounded = (round(point[0], 6), round(point[1], 6))
+        if rounded not in seen:
+            seen.add(rounded)
+            unique_points.append(point)
+    
+    points = unique_points
+    
+    if len(points) < 3:
+        # Fallback for insufficient points
+        lats = [p[0] for p in points]
+        lons = [p[1] for p in points]
+        
+        buffer = 0.002
+        min_lat, max_lat = min(lats) - buffer, max(lats) + buffer
+        min_lon, max_lon = min(lons) - buffer, max(lons) + buffer
+        
+        return [
+            (min_lat, min_lon),
+            (min_lat, max_lon),
+            (max_lat, max_lon),
+            (max_lat, min_lon)
+        ]
+    
+    # Convex hull algorithm to create closed shape
+    def cross_product(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    
+    # Sort points lexicographically
+    points.sort()
+    
+    # Build lower hull
+    lower = []
+    for p in points:
+        while len(lower) >= 2 and cross_product(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    
+    # Build upper hull
+    upper = []
+    for p in reversed(points):
+        while len(upper) >= 2 and cross_product(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    
+    # Combine hulls (remove last point as it's repeated)
+    hull = lower[:-1] + upper[:-1]
+    
+    # Ensure we have at least 3 points for a valid polygon
+    if len(hull) < 3:
+        # If convex hull fails, create a simple bounding polygon
+        lats = [p[0] for p in coordinates]
+        lons = [p[1] for p in coordinates]
+        
+        buffer = 0.001
+        min_lat, max_lat = min(lats) - buffer, max(lats) + buffer
+        min_lon, max_lon = min(lons) - buffer, max(lons) + buffer
+        
+        return [
+            (min_lat, min_lon),
+            (min_lat, max_lon),
+            (max_lat, max_lon),
+            (max_lat, min_lon)
+        ]
+    
+    return hull 
