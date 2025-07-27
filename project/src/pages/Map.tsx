@@ -1770,7 +1770,7 @@ export default function MapPage() {
                                             <span className="text-sm font-medium text-red-700">Critical Issues</span>
                                           </div>
                                           <div className="text-sm text-red-600">
-                                            {criticalIssues[0].description}
+                                            {routeInsights.insights[idx]?.summary}
                                             {criticalIssues.length > 1 && (
                                               <span className="text-xs text-red-500 ml-2">
                                                 +{criticalIssues.length - 1} more
@@ -1787,7 +1787,7 @@ export default function MapPage() {
                                             <span className="text-sm font-medium text-yellow-700">Minor Issues</span>
                                           </div>
                                           <div className="text-sm text-yellow-600">
-                                            {allIncidents[0].description}
+                                            {routeInsights.insights[idx]?.summary}
                                             {allIncidents.length > 1 && (
                                               <span className="text-xs text-yellow-500 ml-2">
                                                 +{allIncidents.length - 1} more
