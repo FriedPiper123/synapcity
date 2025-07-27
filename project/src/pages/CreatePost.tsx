@@ -283,7 +283,17 @@ export default function CreatePostPage() {
   };
 
   const handlePresetSelect = (preset: any) => {
-    setContent(preset.content);
+    let content = preset.content;
+    
+    // Replace location placeholders with current location
+    if (selectedLocation?.locationName) {
+      content = content.replace(/\[area name\]/g, selectedLocation.locationName);
+      content = content.replace(/\[location\]/g, selectedLocation.locationName);
+      content = content.replace(/\[street name\]/g, selectedLocation.locationName);
+      content = content.replace(/\[intersection\]/g, selectedLocation.locationName);
+    }
+    
+    setContent(content);
     setCategory(preset.category);
     setShowPresets(false);
   };
