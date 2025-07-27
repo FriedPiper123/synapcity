@@ -1,6 +1,7 @@
 
 import { Home, Map, MessageSquare, Calendar, Settings, Users, TrendingUp, X, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useInsights } from '../contexts/InsightsContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -17,6 +18,30 @@ const menuItems = [
 
 export const Sidebar = ({ activeTab, setActiveTab, mobile = false }: SidebarProps) => {
   const navigate = useNavigate();
+  const { data, loading, isAutoFetching } = useInsights();
+
+  // Helper functions for score colors (matching Insights page)
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getScoreBgColor = (score: number) => {
+    if (score >= 80) return 'bg-green-100';
+    if (score >= 60) return 'bg-yellow-100';
+    return 'bg-red-100';
+  };
+
+  const getProgressBarColor = (score: number) => {
+    if (score >= 80) return 'from-green-500 to-green-600';
+    if (score >= 60) return 'from-yellow-500 to-yellow-600';
+    return 'from-red-500 to-red-600';
+  };
+
+  // Get area health data
+  const overallScore = data?.analysis?.overallScore;
+  const isDataLoading = loading || isAutoFetching;
   return (
     <aside className={`${mobile ? 'w-full' : 'fixed left-0 top-0 h-full w-16 lg:w-64'} bg-white shadow-lg border-r border-gray-200 z-40`}>
       <div className="p-4">
@@ -67,18 +92,45 @@ export const Sidebar = ({ activeTab, setActiveTab, mobile = false }: SidebarProp
         </nav>
       </div>
 
-      {/* City Status - Only show on desktop */}
+      {/* Area Health - Only show on desktop */}
       {!mobile && (
         <div className="hidden lg:block absolute bottom-4 left-4 right-4">
-          <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-lg p-4">
+          <div className={`rounded-lg p-4 ${overallScore ? getScoreBgColor(overallScore) : 'bg-gray-100'}`}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">City Health</span>
-              <span className="text-sm font-bold text-green-600">85%</span>
+              <span className="text-sm font-medium text-gray-700">Area Health</span>
+              {isDataLoading ? (
+                <div className="flex items-center gap-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                  <span className="text-xs text-gray-600">Loading...</span>
+                </div>
+              ) : overallScore !== undefined ? (
+                <span className={`text-sm font-bold ${getScoreColor(overallScore)}`}>
+                  {overallScore}%
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500">No data</span>
+              )}
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full w-4/5"></div>
+              <div 
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  overallScore ? `bg-gradient-to-r ${getProgressBarColor(overallScore)}` : 'bg-gray-300'
+                }`}
+                style={{ width: overallScore ? `${overallScore}%` : '0%' }}
+              ></div>
             </div>
-            <p className="text-xs text-gray-600 mt-2">Keep up the great work!</p>
+            <p className="text-xs text-gray-600 mt-2">
+              {isDataLoading 
+                ? "Analyzing current area health..." 
+                : overallScore !== undefined
+                  ? overallScore >= 80 
+                    ? "Excellent area health!" 
+                    : overallScore >= 60 
+                      ? "Good area health!" 
+                      : "Needs improvement"
+                  : "Analyzing your location..."
+              }
+            </p>
           </div>
         </div>
       )}
