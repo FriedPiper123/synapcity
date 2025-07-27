@@ -67,11 +67,12 @@ async def create_post(
             "createdAt": datetime.now(timezone.utc),
             "status": "active",
             "location": location_geopoint,  # Add the GeoPoint directly
-            "location_name": None,
-            "mentioned_location_name": None,
+            "location_name": post_dict.get('neighborhood'),
+            "mentioned_location_name": post_dict.get('neighborhood'),
             "geohash": post_geohash,  # Add geohash for efficient queries
         }
         gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = post_data["content"])
+        
         if gemini_output['sentiment'].lower() == "vulgar":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -82,6 +83,11 @@ async def create_post(
                     "description": "Vulgarity is not allowed. Strict action will be taken if this happens again."
                 }
             )
+
+        if gemini_output.get('location') and  'available' not in gemini_output.get('location'):
+            post_data['mentioned_location_name'] = gemini_output.get('location')
+        
+        print(gemini_output)
 
         db.collection('posts').document(post_id).set(post_data)
         
@@ -101,8 +107,8 @@ async def create_post(
             detail=str(e)
         )
 
-@router.get("/nearby", response_model=List[Post])
 @ttl_lru_cache(ttl=5, max_size=528)
+@router.get("/nearby", response_model=List[Post])
 async def get_posts_by_location(
     latitude: float = Query(..., description="Latitude of the user's location"),
     longitude: float = Query(..., description="Longitude of the user's location"),
@@ -192,8 +198,8 @@ async def get_posts_by_location(
             detail=f"Error fetching location-based posts: {str(e)}"
         )
 
-@router.get("/post/{post_id}", response_model=Post)
 @ttl_lru_cache(ttl=5, max_size=528)
+@router.get("/post/{post_id}", response_model=Post)
 async def get_post_by_id(post_id: str):
     try:
         post_ref = db.collection('posts').document(post_id)
