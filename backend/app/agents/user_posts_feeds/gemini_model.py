@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 from google.genai import types
 from .post_feed_utils.prompt_creator import (
     create_analysis_prompt, 
@@ -19,8 +19,7 @@ def set_gemini_output_injson(output):
   
 class GeminiModel:
     def __init__(self, api_key) -> None:
-        genai.configure(api_key=api_key)
-        self.client = genai
+        self.client = genai.Client(api_key=api_key)
         #Define the grounding tool
         grounding_tool = types.Tool(
             google_search=types.GoogleSearch()
@@ -45,11 +44,11 @@ class GeminiModel:
         if task not in self.task_prompt_creator:
             raise ValueError(f"{task} is not supported. Supported tasks are {self.task_prompt_creator.keys()}")
         input_prompt = self.task_prompt_creator[task](kwargs)
-        model = self.client.GenerativeModel(gemini_model_type)
-        response = model.generate_content(
-            input_prompt,
-            generation_config=self.config if google_search else None
-        )
+        response = self.client.models.generate_content(
+                                                model=gemini_model_type,
+                                                contents=input_prompt,
+                                                config = self.config if google_search else None
+                                                )
         return set_gemini_output_injson(response.text)
 
 
@@ -59,11 +58,26 @@ GeminiAgent = GeminiModel(api_key=GEMINI_API_KEY)
 
 
 if __name__ == "__main__":
-    img_path = "/app/sc_agents/new/synapcity/backend/app/agents/user_posts_feeds/istockphoto-95658927-612x612.jpg"
+    img_path = "/app/synapcity/backend/app/agents/user_posts_feeds/istockphoto-95658927-612x612.jpg"
     user_content = "There is a pothole on the roads of HSR bangalore"
-    a = GeminiAgent(gemini_model_type = "gemini-2.5-flash-lite", 
-                    task = "image_content_analysis", 
-                    img_path = img_path, user_content = user_content
-                    )
-    print(a)
+    import time
+    from pprint import pprint
+    for _ in range(3):
+        st = time.perf_counter()
+        a = GeminiAgent(gemini_model_type = "gemini-2.5-flash-lite", 
+                        task = "image_content_analysis", 
+                        img_path = img_path, user_content = user_content
+                        )
+        print(time.perf_counter() - st)
+    pprint(a)
+
+    user_message = "i am having a good day at hsr"
+    for _ in range(3):
+        st = time.perf_counter()
+        a = GeminiAgent(gemini_model_type = "gemini-2.5-flash-lite", 
+                        task = "post_analysis", 
+                        user_post_message = user_message
+                        )
+        print(time.perf_counter() - st)
+    pprint(a)
 

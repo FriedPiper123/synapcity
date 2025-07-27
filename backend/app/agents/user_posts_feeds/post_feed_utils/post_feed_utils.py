@@ -101,14 +101,14 @@ def get_summary_links(gemini_model, feed_data, topk_links = 3, hours_back = 24):
     summary = feed_data.get("summary", "")
 
     output_json = gemini_model(
-        gemini_model_type = "gemini-2.5-flash",
+        gemini_model_type = "gemini-2.5-flash-lite",
         task = "summarizer_prompt_using_external_sources", 
         type = curr_type,
         issue_tag = category, 
         location = location,
         summaries = summary, 
         time_from = (datetime.now() - timedelta(hours=hours_back)).strftime("%d/%m/%Y"),
-        google_search=False, 
+        google_search=True, 
         )
     all_links = output_json.get("external_references", [])
     valid_links = score_links_with_google(summary, all_links, topk = topk_links)
