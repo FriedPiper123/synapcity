@@ -3,7 +3,7 @@ Traffic Analyzer Module
 Handles Gemini AI analysis and traffic data processing
 """
 
-import google.generativeai as genai
+from google import genai
 import json
 import re
 from datetime import datetime
@@ -35,8 +35,7 @@ class TrafficAnalyzer:
             search_engine_id: Google Custom Search Engine ID (optional)
         """
         self.gemini_api_key = gemini_api_key
-        genai.configure(api_key=self.gemini_api_key)
-        self.client = genai
+        self.client = genai.Client(api_key=self.gemini_api_key)
 
 
         # Initialize web searcher
@@ -162,8 +161,9 @@ AVAILABLE VERIFIED URLS:
         
         try:
             logger.info("Sending prompt to Gemini...")
-            model = self.client.GenerativeModel('gemini-2.5-flash-lite')
-            response = model.generate_content(full_prompt)
+            response = self.client.models.generate_content(
+                        model='gemini-2.5-flash-lite',
+                        contents=full_prompt)
             
             # Check if response exists and has text
             if not response or not hasattr(response, 'text') or not response.text:

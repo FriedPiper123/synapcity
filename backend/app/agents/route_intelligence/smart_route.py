@@ -604,8 +604,8 @@ async def main():
         
         start = time.time()
         routes = await synap_city.get_per_route_insights(origin, destination, departure_time)
-        # print(f"Time taken: {time.time() - start} seconds")
-        # print(json.dumps(routes, indent=2))
+        print(f"Time taken: {time.time() - start} seconds")
+        print(json.dumps(routes, indent=2))
 
 if __name__ == "__main__":
     asyncio.run(main())
