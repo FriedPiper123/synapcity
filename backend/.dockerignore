@@ -1,0 +1,35 @@
+# Docker-specific files
+Dockerfile
+.dockerignore
+
+# Python virtual environment
+venv/
+.venv/
+
+# Google Cloud SDK directory
+google-cloud-sdk/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing directory
+tests/
+
+# Specific files to ignore
+README.md
+test_enhancer_routes.py
+traffic_analyzer.log
+
+# IDE and editor configuration
+.vscode/
+.idea/
+*.swp
+
+# Git directory
+.git/
+
+# Keep .env in ignore list since we'll pass env vars via command line
+.env
