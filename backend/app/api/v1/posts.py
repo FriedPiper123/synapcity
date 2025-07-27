@@ -18,6 +18,8 @@ from ...utils.geohash_utils import (
     calculate_distance
 )
 
+from fastapi_utilities import ttl_lru_cache
+
 router = APIRouter()
 
 def get_author_details(user_id):
@@ -100,7 +102,7 @@ async def create_post(
         )
 
 @router.get("/nearby", response_model=List[Post])
-@cached_posts_endpoint(max_age_seconds=300, max_memory_mb=10)
+@ttl_lru_cache(ttl=5, max_size=528)
 async def get_posts_by_location(
     latitude: float = Query(..., description="Latitude of the user's location"),
     longitude: float = Query(..., description="Longitude of the user's location"),
@@ -191,7 +193,7 @@ async def get_posts_by_location(
         )
 
 @router.get("/post/{post_id}", response_model=Post)
-@cached_posts_endpoint(max_age_seconds=600, max_memory_mb=5)
+@ttl_lru_cache(ttl=5, max_size=528)
 async def get_post_by_id(post_id: str):
     try:
         post_ref = db.collection('posts').document(post_id)
@@ -305,11 +307,13 @@ async def downvote_post(
         )
 
 @router.get("/cache/stats")
+@ttl_lru_cache(ttl=5, max_size=528)
 async def get_posts_cache_stats():
     """Get posts cache statistics"""
     return posts_cache_stats()
 
 @router.post("/cache/clear")
+@ttl_lru_cache(ttl=5, max_size=528)
 async def clear_posts_cache_endpoint():
     """Clear posts cache"""
     clear_posts_cache()

@@ -217,6 +217,8 @@ def generate_fallback_insights(latitude: float, longitude: float) -> Dict:
         "postTypes": {}
     }
 
+from fastapi_utilities import ttl_lru_cache
+
 @ttl_lru_cache(ttl=5, max_size=528)
 @router.get("/area-insights", response_model=Area)
 async def get_area_insights(
@@ -255,7 +257,7 @@ async def get_area_insights(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating area insights: {str(e)}"
         ) 
-
+@ttl_lru_cache(ttl=5, max_size=528)
 @router.get("/area-analysis-response", response_class=JSONResponse)
 async def get_area_analysis_response():
     """
@@ -269,8 +271,7 @@ async def get_area_analysis_response():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
 
-
-# @ttl_lru_cache(ttl=60, max_size=528)
+@ttl_lru_cache(ttl=1800, max_size=3528)
 @router.post("/analyze-area", response_class=JSONResponse)
 async def analyze_area_with_webhook(request: AreaAnalysisRequest):
     """
@@ -308,7 +309,7 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
         }
         
         # Call external webhook API
-        webhook_url = "https://donothackmyapi.duckdns.org/webhook-test/analyze-area"
+        webhook_url = "https://donothackmyapi.duckdns.org/webhook/analyze-area"
         
         import httpx
 
