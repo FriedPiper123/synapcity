@@ -52,7 +52,7 @@ async def create_comment(
         # Check for vulgar content in comments
         gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = comment.content)
         
-        if gemini_output['sentiment'] == "vulgar":
+        if gemini_output['sentiment'].lower() == "vulgar":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
