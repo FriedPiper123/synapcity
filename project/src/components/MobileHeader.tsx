@@ -19,9 +19,7 @@ export const MobileHeader = ({ onMenuToggle, onQuickPost, onProfileToggle }: Mob
             <Menu className="w-6 h-6 text-gray-700" />
           </button>
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
+            <img src="/icon.png" alt="SynapCity Logo" className="w-8 h-8 rounded-lg" />
             <span className="text-lg font-bold text-gray-800">SynapCity</span>
           </div>
         </div>
