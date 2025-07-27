@@ -3,6 +3,8 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
 import math
+import httpx
+import asyncio
 from firebase_admin import firestore
 
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
@@ -21,6 +23,65 @@ from ...utils.geohash_utils import (
 from fastapi_utilities import ttl_lru_cache
 
 router = APIRouter()
+
+async def report_high_upvote_post(post_data: dict, user_data: dict):
+    """
+    Report a post with high upvotes to the webhook.
+    This function handles errors gracefully to not affect the main upvote functionality.
+    """
+    try:
+        webhook_url = "https://donothackmyapi.duckdns.org/webhook/report-issue"
+        
+        # Determine severity based on upvote count
+        upvotes = post_data.get("upvotes", 0)
+        if upvotes > 10:
+            severity = "HIGH"
+        elif upvotes > 6:
+            severity = "MEDIUM"
+        else:
+            severity = "LOW"
+        
+        # Prepare comprehensive post data
+        post_payload = {}
+        for key, value in post_data.items():
+            if key == "createdAt" and value:
+                # Convert datetime to ISO string
+                post_payload[key] = value.isoformat() if hasattr(value, 'isoformat') else str(value)
+            elif key == "location" and hasattr(value, 'latitude'):
+                # Convert GeoPoint to dict
+                post_payload[key] = {
+                    "latitude": value.latitude,
+                    "longitude": value.longitude
+                }
+            elif key in ["upvotedBy", "downvotedBy"]:
+                # Include vote arrays but limit size for payload efficiency
+                post_payload[key] = value[:20] if isinstance(value, list) else value
+            else:
+                # Include all other fields as-is
+                post_payload[key] = value
+        
+        # Prepare the payload with all post data and severity
+        payload = {
+            "post": post_payload,
+            "user": user_data,
+            "severity": severity,
+            "reported_at": datetime.now(timezone.utc).isoformat(),
+            "reason": f"High upvote count detected ({upvotes} upvotes)",
+            "threshold_exceeded": upvotes,
+            "report_type": "HIGH_UPVOTE_ALERT"
+        }
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(webhook_url, json=payload)
+            response.raise_for_status()
+            print(f"Successfully reported post {post_data.get('postId')} to webhook")
+            
+    except httpx.TimeoutException:
+        print(f"Webhook timeout for post {post_data.get('postId', 'unknown')}")
+    except httpx.HTTPStatusError as e:
+        print(f"Webhook HTTP error for post {post_data.get('postId', 'unknown')}: {e.response.status_code}")
+    except Exception as e:
+        print(f"Webhook error for post {post_data.get('postId', 'unknown')}: {str(e)}")
 
 def get_author_details(user_id):
     user_ref = db.collection('users').document(user_id)
@@ -263,6 +324,24 @@ async def upvote_post(
             'upvotes': firestore.Increment(1),
             'upvotedBy': firestore.ArrayUnion([current_user.userId])
         })
+        
+        # Get updated post data to check upvote count
+        updated_post = post_ref.get()
+        if updated_post.exists:
+            updated_post_data = updated_post.to_dict()
+            current_upvotes = updated_post_data.get('upvotes', 0)
+            
+            # If upvotes > 3, report to webhook
+            if current_upvotes > 3:
+                updated_post_data['postId'] = post_id
+                user_details = {
+                    'userId': current_user.userId,
+                    'username': getattr(current_user, 'username', 'Unknown'),
+                    'email': getattr(current_user, 'email', None)
+                }
+                
+                # Call webhook asynchronously without blocking the response
+                asyncio.create_task(report_high_upvote_post(updated_post_data, user_details))
         
         return {"message": "Post upvoted successfully"}
     except Exception as e:
