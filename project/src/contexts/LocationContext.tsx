@@ -15,6 +15,7 @@ interface LocationContextType {
   getCurrentLocation: () => Promise<void>;
   pinCurrentLocation: () => Promise<void>;
   clearSelectedLocation: () => void;
+  setCurrentLocationManually: (location: LocationData) => Promise<void>;
   getLocationDisplayName: (location?: LocationData) => string;
   refreshLocationName: () => Promise<void>;
 }
@@ -127,6 +128,15 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     }
   };
 
+  const setCurrentLocationManually = async (location: LocationData) => {
+    // Fetch location name for the new location
+    const locationName = await fetchLocationName(location.latitude, location.longitude);
+    const newLocation = { ...location, locationName };
+    
+    setCurrentLocation(newLocation);
+    setSelectedLocationState(newLocation);
+  };
+
   // Helper to fetch location name from Google Maps Geocoding API
   const fetchLocationName = async (latitude: number, longitude: number): Promise<string> => {
     try {
@@ -217,6 +227,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     getCurrentLocation,
     pinCurrentLocation,
     clearSelectedLocation,
+    setCurrentLocationManually,
     getLocationDisplayName,
     refreshLocationName,
   };

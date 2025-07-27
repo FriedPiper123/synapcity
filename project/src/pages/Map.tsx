@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { 
   MapPin, 
   Search, 
@@ -269,7 +270,12 @@ export default function MapPage() {
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [heatmapError, setHeatmapError] = useState<string | null>(null);
 
-  const { selectedLocation, currentLocation, getCurrentLocation, isLoading: locationLoading } = useLocation();
+  // Location change state
+  const [showLocationChangeDialog, setShowLocationChangeDialog] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [isChangingLocation, setIsChangingLocation] = useState(false);
+
+  const { selectedLocation, currentLocation, getCurrentLocation, isLoading: locationLoading, setCurrentLocationManually } = useLocation();
 
   // Refs for input focus
   const startInputRef = useRef<HTMLInputElement>(null);
@@ -669,6 +675,51 @@ export default function MapPage() {
     setShowRouteLabels({});
   };
 
+  // Map click handler for changing current location
+  const handleMapMouseDown = (event: google.maps.MapMouseEvent) => {
+    if (event.latLng) {
+      const lat = event.latLng.lat();
+      const lng = event.latLng.lng();
+      
+      // Set the pending location and show dialog
+      setPendingLocation({ lat, lng });
+      setShowLocationChangeDialog(true);
+    }
+  };
+
+  const confirmLocationChange = async () => {
+    if (pendingLocation && setCurrentLocationManually) {
+      setIsChangingLocation(true);
+      try {
+        await setCurrentLocationManually({
+          latitude: pendingLocation.lat,
+          longitude: pendingLocation.lng,
+          locationName: undefined
+        });
+        
+        // Center map on new location
+        setMapCenter({ lat: pendingLocation.lat, lng: pendingLocation.lng });
+        setMapZoom(15);
+        
+        // Refresh heatmap if active
+        if (showHeatmap) {
+          await fetchHeatmapData();
+        }
+      } catch (error) {
+        console.error('Error changing location:', error);
+      } finally {
+        setIsChangingLocation(false);
+        setShowLocationChangeDialog(false);
+        setPendingLocation(null);
+      }
+    }
+  };
+
+  const cancelLocationChange = () => {
+    setShowLocationChangeDialog(false);
+    setPendingLocation(null);
+  };
+
   const fetchHeatmapData = async () => {
     if (!currentLocation) {
       setHeatmapError('Current location not available');
@@ -1004,7 +1055,12 @@ export default function MapPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              💡 Click anywhere on the map to change your current location
+            </p>
+          </div>
           
           <div className="flex items-center gap-4">
             {/* Current Location Display */}
@@ -1106,6 +1162,7 @@ export default function MapPage() {
                     zoom={mapZoom}
                     onCenterChanged={() => {}}
                     onZoomChanged={() => {}}
+                    onClick={handleMapMouseDown}
                   >
                     {/* User's selected location marker (only show if different from current location) */}
                     {selectedLocation && currentLocation && 
@@ -1226,6 +1283,7 @@ export default function MapPage() {
                             strokeWeight: 2,
                             fillColor: getCircleFillColor(item.type, item.severity),
                             fillOpacity: 0.3,
+                            clickable: false,
                           }}
                         />
                       </div>
@@ -1335,6 +1393,7 @@ export default function MapPage() {
                              options={{
                                ...getPolygonOptions('high'),
                                fillOpacity: 0.3,
+                               clickable: false,
                              }}
                            />
                          ))}
@@ -1345,6 +1404,7 @@ export default function MapPage() {
                              options={{
                                ...getPolygonOptions('medium'),
                                fillOpacity: 0.3,
+                               clickable: false,
                              }}
                            />
                          ))}
@@ -1355,6 +1415,7 @@ export default function MapPage() {
                              options={{
                                ...getPolygonOptions('low'),
                                fillOpacity: 0.3,
+                               clickable: false,
                              }}
                            />
                          ))}
@@ -1964,6 +2025,53 @@ export default function MapPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Location Change Confirmation Dialog */}
+        <AlertDialog open={showLocationChangeDialog} onOpenChange={setShowLocationChangeDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-600" />
+                Change Current Location
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Do you want to set your current location to this point on the map?
+                {pendingLocation && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    <strong>New Location:</strong><br />
+                    Latitude: {pendingLocation.lat.toFixed(6)}<br />
+                    Longitude: {pendingLocation.lng.toFixed(6)}
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-amber-600">
+                  This will update your location throughout the entire application and refresh location-based data.
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={cancelLocationChange}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmLocationChange}
+                disabled={isChangingLocation}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isChangingLocation ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Update Location
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
