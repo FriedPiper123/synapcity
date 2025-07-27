@@ -7,6 +7,7 @@ from collections import defaultdict
 import json
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import hashlib
 
 from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
@@ -27,6 +28,73 @@ class AreaAnalysisRequest(BaseModel):
     coordinates: Dict[str, Any]
     analysisType: str
     timeRange: str
+
+def generate_cache_key(coordinates: Dict[str, Any], analysis_type: str, time_range: str) -> str:
+    """
+    Generate a unique cache key based on coordinates and analysis parameters.
+    """
+    # Round coordinates to 4 decimal places for reasonable precision
+    lat = round(coordinates['lat'], 4)
+    lng = round(coordinates['lng'], 4)
+    
+    # Create a string representation of the parameters
+    cache_string = f"{lat}_{lng}_{analysis_type}_{time_range}"
+    
+    # Generate a hash for the cache key
+    cache_hash = hashlib.md5(cache_string.encode()).hexdigest()
+    
+    return f"{lat}_{lng}_{cache_hash}"
+
+def get_cache_file_path(cache_key: str) -> str:
+    """
+    Get the file path for the cache file.
+    """
+    cache_dir = os.path.join(os.path.dirname(__file__), '../../../cache/area_analysis')
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, f"{cache_key}.json")
+
+def load_cached_response(cache_key: str) -> Optional[Dict]:
+    """
+    Load cached response from JSON file if it exists.
+    """
+    cache_file_path = get_cache_file_path(cache_key)
+    
+    try:
+        if os.path.exists(cache_file_path):
+            with open(cache_file_path, 'r') as f:
+                cached_data = json.load(f)
+                
+            # Check if cache is still valid (24 hours)
+            cached_time = datetime.fromisoformat(cached_data.get('cached_at', ''))
+            if datetime.now(timezone.utc) - cached_time < timedelta(hours=24):
+                return cached_data.get('response')
+            else:
+                # Cache expired, remove the file
+                os.remove(cache_file_path)
+                
+    except Exception as e:
+        print(f"Error loading cached response: {str(e)}")
+        
+    return None
+
+def save_response_to_cache(cache_key: str, response_data: Dict) -> None:
+    """
+    Save response data to cache file.
+    """
+    cache_file_path = get_cache_file_path(cache_key)
+    
+    try:
+        cache_data = {
+            'cached_at': datetime.now(timezone.utc).isoformat(),
+            'cache_key': cache_key,
+            'response': response_data
+        }
+        
+        with open(cache_file_path, 'w') as f:
+            json.dump(cache_data, f, indent=2, default=str)
+            
+    except Exception as e:
+        print(f"Error saving response to cache: {str(e)}")
 
 def analyze_posts_for_insights(latitude: float, longitude: float, radius_km: float = 5.0) -> Dict:
     """
@@ -271,12 +339,11 @@ async def get_area_analysis_response():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading area analysis response: {str(e)}") 
 
-@ttl_lru_cache(ttl=1800, max_size=3528)
 @router.post("/analyze-area", response_class=JSONResponse)
 async def analyze_area_with_webhook(request: AreaAnalysisRequest):
     """
-    Analyze area using external webhook API.
-    Takes coordinates, analysis type, and time range, then calls external API.
+    Analyze area using external webhook API with coordinate-based caching.
+    Checks for cached data first, then calls webhook if needed.
     """
     try:
         # Validate coordinates
@@ -300,6 +367,15 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Longitude must be between -180 and 180"
             )
+        
+        # Generate cache key based on request parameters
+        cache_key = generate_cache_key(request.coordinates, request.analysisType, request.timeRange)
+        
+        # Check if cached response exists
+        cached_response = load_cached_response(cache_key)
+        if cached_response:
+            print(f"Returning cached response for coordinates: {lat}, {lng}")
+            return JSONResponse(content=cached_response)
         
         # Prepare payload for external API
         payload = {
@@ -326,8 +402,14 @@ async def analyze_area_with_webhook(request: AreaAnalysisRequest):
         try:
             
             if response.status_code == 200:
+                response_data = response.json()
+                
+                # Save response to cache
+                save_response_to_cache(cache_key, response_data)
+                print(f"Saved new response to cache for coordinates: {lat}, {lng}")
+                
                 # Return the response from the external API
-                return JSONResponse(content=response.json())
+                return JSONResponse(content=response_data)
             else:
                 # Log the error and return a fallback response
                 print(f"External API error: {response.status_code} - {response.text}")
