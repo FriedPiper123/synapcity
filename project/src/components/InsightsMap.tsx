@@ -95,7 +95,7 @@ export const InsightsMap: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiFetch(
-        `http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
+        `/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`
       );
       
       if (response.ok) {

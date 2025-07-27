@@ -51,7 +51,7 @@ export const AreaInsights: React.FC<AreaInsightsProps> = ({
       
       // Create the API call promise
       const apiPromise = apiFetch(
-        `http://0.0.0.0:8000/api/v1/insights/area-insights?latitude=${latitude}&longitude=${longitude}`
+        `/api/v1/insights/area-insights?latitude=${latitude}&longitude=${longitude}`
       );
       
       // Race between timeout and API call

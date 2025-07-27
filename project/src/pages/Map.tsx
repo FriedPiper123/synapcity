@@ -331,7 +331,7 @@ export default function MapPage() {
     try {
       setAutocompleteLoading(true);
       
-      const response = await fetch(`http://0.0.0.0:8000/api/v1/routes/autocomplete?query=${encodeURIComponent(query)}`, {
+      const response = await fetch(`/api/v1/routes/autocomplete?query=${encodeURIComponent(query)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -518,7 +518,7 @@ export default function MapPage() {
       
       let departureTime = selectedDate.getTime();
 
-      const response = await fetch('http://0.0.0.0:8000/api/v1/routes/best-route', {
+      const response = await fetch('/api/v1/routes/best-route', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -743,7 +743,7 @@ export default function MapPage() {
     
     try {
       const response = await apiFetch(
-        `http://0.0.0.0:8000/api/v1/insights/heatmap-data?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=3.0`
+        `/api/v1/insights/heatmap-data?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&radius_km=3.0`
       );
       
       if (response.ok) {
@@ -902,9 +902,9 @@ export default function MapPage() {
       let res;
       
       if (selectedLocation) {
-        res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`);
+        res = await apiFetch(`/api/v1/posts/nearby?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0`);
       } else {
-        res = await apiFetch('http://0.0.0.0:8000/api/v1/posts/?limit=100');
+        res = await apiFetch('/api/v1/posts/?limit=100');
       }
       
       const data = await res.json();

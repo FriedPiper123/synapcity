@@ -54,7 +54,7 @@ export const InsightsProvider = ({ children }: { children: ReactNode }) => {
         timeRange: timeRange
       };
 
-      const response = await apiFetch('http://0.0.0.0:8000/api/v1/insights/analyze-area', {
+      const response = await apiFetch('/api/v1/insights/analyze-area', {
         method: 'POST',
         body: JSON.stringify(payload)
       });

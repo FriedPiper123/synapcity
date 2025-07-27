@@ -46,7 +46,7 @@ describe('CreatePostPage', () => {
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
-        'http://0.0.0.0:8000/api/v1/posts/',
+        '/api/v1/posts/',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

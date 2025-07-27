@@ -35,7 +35,7 @@ export default function PostDetail() {
       setLoading(true);
       try {
         // First, try to fetch the post directly using the new API
-        const postRes = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/post/${postId}`);
+        const postRes = await apiFetch(`/api/v1/posts/post/${postId}`);
         
         if (postRes.ok) {
           const postData = await postRes.json();
@@ -44,7 +44,7 @@ export default function PostDetail() {
           // Check if this post has a parentId (meaning it's a comment)
           if (postData.parentId) {
             // This is a comment, fetch the parent post
-            const parentRes = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/post/${postData.parentId}`);
+            const parentRes = await apiFetch(`/api/v1/posts/post/${postData.parentId}`);
             if (parentRes.ok) {
               const parentData = await parentRes.json();
               setParentPost(parentData);
@@ -54,7 +54,7 @@ export default function PostDetail() {
             setParentPost(null);
           }
           
-          const commentsRes = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/comments?limit=100`);
+          const commentsRes = await apiFetch(`/api/v1/posts/${postId}/comments?limit=100`);
           const commentsData = await commentsRes.json();
           setComments(commentsData || []);
           setCommentCount(commentsData?.length || 0);
@@ -83,7 +83,7 @@ export default function PostDetail() {
     if (!commentText.trim() || !postId) return;
     setSubmitting(true);
     try {
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/comments`, {
+      const res = await apiFetch(`/api/v1/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: commentText }),
@@ -114,7 +114,7 @@ export default function PostDetail() {
       setLikeCount(c => liked ? c-1 : c+1);
       
       // Make API call to like/unlike the post
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${postId}/upvote`, {
+      const res = await apiFetch(`/api/v1/posts/${postId}/upvote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -139,7 +139,7 @@ export default function PostDetail() {
       setLikedComments(prev => ({...prev, [id]: !prev[id]}));
       
       // Make API call to like/unlike the comment
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/${id}/upvote`, {
+      const res = await apiFetch(`/api/v1/posts/${id}/upvote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

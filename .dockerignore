@@ -1,0 +1,36 @@
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+backend/__pycache__/
+backend/venv/
+backend/.venv/
+
+# Large files
+*.log
+*.sqlite
+*.db
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+frontend/dist/
+frontend/build/
+
+# Large dependency folders
+backend/google-cloud-sdk/

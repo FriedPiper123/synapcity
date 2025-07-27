@@ -77,7 +77,7 @@ export const ActivitiesProvider: React.FC<ActivitiesProviderProps> = ({ children
       console.log('Fetching activities for location:', selectedLocation);
 
       const response = await apiFetch(
-        `http://0.0.0.0:8000/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0&limit=10`
+        `/api/v1/dashboard/recent-activities?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}&radius_km=5.0&limit=10`
       );
 
       if (!response.ok) {

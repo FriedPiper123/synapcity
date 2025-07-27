@@ -1,7 +1,7 @@
 describe('Main User Flow', () => {
   beforeEach(() => {
     // Mock API responses
-    cy.intercept('GET', 'http://0.0.0.0:8000/api/v1/posts/*', {
+    cy.intercept('GET', '/api/v1/posts/*', {
       statusCode: 200,
       body: [
         {
@@ -17,12 +17,12 @@ describe('Main User Flow', () => {
       ],
     }).as('getPosts');
 
-    cy.intercept('POST', 'http://0.0.0.0:8000/api/v1/posts/*/upvote', {
+    cy.intercept('POST', '/api/v1/posts/*/upvote', {
       statusCode: 200,
       body: {},
     }).as('upvotePost');
 
-    cy.intercept('GET', 'http://0.0.0.0:8000/api/v1/posts/*/comments*', {
+    cy.intercept('GET', '/api/v1/posts/*/comments*', {
       statusCode: 200,
       body: [
         { content: 'Test comment 1' },
@@ -30,17 +30,17 @@ describe('Main User Flow', () => {
       ],
     }).as('getComments');
 
-    cy.intercept('POST', 'http://0.0.0.0:8000/api/v1/posts/*/comments', {
+    cy.intercept('POST', '/api/v1/posts/*/comments', {
       statusCode: 200,
       body: {},
     }).as('postComment');
 
-    cy.intercept('POST', 'http://0.0.0.0:8000/api/v1/posts/', {
+    cy.intercept('POST', '/api/v1/posts/', {
       statusCode: 200,
       body: { postId: 'new-post' },
     }).as('createPost');
 
-    cy.intercept('GET', 'http://0.0.0.0:8000/api/v1/insights/area-analysis-response', {
+    cy.intercept('GET', '/api/v1/insights/area-analysis-response', {
       statusCode: 200,
       body: {
         analysis: {
@@ -112,7 +112,7 @@ describe('Main User Flow', () => {
   });
 
   it('should handle vulgarity warnings', () => {
-    cy.intercept('POST', 'http://0.0.0.0:8000/api/v1/posts/', {
+    cy.intercept('POST', '/api/v1/posts/', {
       statusCode: 400,
       body: {
         detail: {
@@ -134,7 +134,7 @@ describe('Main User Flow', () => {
   });
 
   it('should handle comment vulgarity warnings', () => {
-    cy.intercept('POST', 'http://0.0.0.0:8000/api/v1/posts/*/comments', {
+    cy.intercept('POST', '/api/v1/posts/*/comments', {
       statusCode: 400,
       body: {
         detail: {
@@ -158,7 +158,7 @@ describe('Main User Flow', () => {
   });
 
   it('should handle API errors gracefully', () => {
-    cy.intercept('GET', 'http://0.0.0.0:8000/api/v1/posts/*', {
+    cy.intercept('GET', '/api/v1/posts/*', {
       statusCode: 500,
       body: { error: 'Internal server error' },
     }).as('getPostsError');
