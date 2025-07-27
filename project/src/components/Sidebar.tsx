@@ -13,8 +13,6 @@ const menuItems = [
   { id: 'map', label: 'City Map', icon: Map },
   { id: 'feed', label: 'Community Feed', icon: MessageSquare },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-  { id: 'community', label: 'Community', icon: Users },
-  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export const Sidebar = ({ activeTab, setActiveTab, mobile = false }: SidebarProps) => {
@@ -59,20 +57,6 @@ export const Sidebar = ({ activeTab, setActiveTab, mobile = false }: SidebarProp
             );
           })}
                             {/* Add City Map navigation */}
-                  <button
-                    onClick={() => navigate('/map')}
-                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all duration-200"
-                  >
-                    <Map className="w-5 h-5" />
-                    <span className={`${mobile ? 'block' : 'hidden lg:block'} font-medium`}>City Map</span>
-                  </button>
-          <button
-            onClick={() => navigate('/insights')}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all duration-200"
-          >
-            <TrendingUp className="w-5 h-5" />
-            <span className={`${mobile ? 'block' : 'hidden lg:block'} font-medium`}>Insights</span>
-          </button>
           <button
             onClick={() => navigate('/create')}
             className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all duration-200"

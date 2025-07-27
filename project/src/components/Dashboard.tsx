@@ -348,7 +348,7 @@ export const Dashboard = () => {
       )}
 
       {/* Area Insights Quick Summary */}
-      {selectedLocation && (
+      {/* {selectedLocation && (
         <Card className="shadow-sm border border-gray-100">
           <CardContent className="p-4">
             <Collapsible open={showAreaInsights} onOpenChange={setShowAreaInsights}>
@@ -379,7 +379,7 @@ export const Dashboard = () => {
             )}
           </CardContent>
         </Card>
-      )}
+      )} */}
 
       {/* Stats Grid */}
       {statsLoading ? (

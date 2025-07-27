@@ -91,6 +91,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
+      // Sign in anonymously after signing out
+      await signInAnonymously();
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -103,7 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signInWithGoogle,
     signInAnonymously,
     signOut,
-    isAnonymous: user?.isAnonymous || false,
+    isAnonymous: user?.isAnonymous ?? true,
   };
 
   return (

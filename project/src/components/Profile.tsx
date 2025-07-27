@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProfileProps {
   onClose: () => void;
@@ -37,7 +37,6 @@ export const Profile = ({ onClose }: ProfileProps) => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
-    { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'help', label: 'Help', icon: HelpCircle }
@@ -144,130 +143,6 @@ export const Profile = ({ onClose }: ProfileProps) => {
           </div>
         );
 
-      case 'notifications':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">Notification Preferences</h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Email Alerts</Label>
-                  <p className="text-sm text-gray-600">Receive important updates via email</p>
-                </div>
-                <Switch
-                  checked={notifications.emailAlerts}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, emailAlerts: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Push Notifications</Label>
-                  <p className="text-sm text-gray-600">Get real-time alerts on your device</p>
-                </div>
-                <Switch
-                  checked={notifications.pushNotifications}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, pushNotifications: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Weekly Digest</Label>
-                  <p className="text-sm text-gray-600">Summary of community activity</p>
-                </div>
-                <Switch
-                  checked={notifications.weeklyDigest}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, weeklyDigest: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Emergency Alerts</Label>
-                  <p className="text-sm text-gray-600">Critical safety notifications</p>
-                </div>
-                <Switch
-                  checked={notifications.emergencyAlerts}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, emergencyAlerts: checked })}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'settings':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">App Settings</h3>
-            
-            <div className="space-y-4">
-              <Button variant="outline" className="w-full justify-start">
-                <Settings className="w-4 h-4 mr-2" />
-                Language & Region
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <Bell className="w-4 h-4 mr-2" />
-                Sound Settings
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <Shield className="w-4 h-4 mr-2" />
-                Data & Storage
-              </Button>
-            </div>
-          </div>
-        );
-
-      case 'privacy':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">Privacy & Security</h3>
-            
-            <div className="space-y-4">
-              <Button variant="outline" className="w-full justify-start">
-                <Shield className="w-4 h-4 mr-2" />
-                Privacy Policy
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <Settings className="w-4 h-4 mr-2" />
-                Account Security
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <User className="w-4 h-4 mr-2" />
-                Data Export
-              </Button>
-            </div>
-          </div>
-        );
-
-      case 'help':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">Help & Support</h3>
-            
-            <div className="space-y-4">
-              <Button variant="outline" className="w-full justify-start">
-                <HelpCircle className="w-4 h-4 mr-2" />
-                FAQ
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <Settings className="w-4 h-4 mr-2" />
-                Contact Support
-              </Button>
-              
-              <Button variant="outline" className="w-full justify-start">
-                <User className="w-4 h-4 mr-2" />
-                Community Guidelines
-              </Button>
-            </div>
-          </div>
-        );
 
       default:
         return null;

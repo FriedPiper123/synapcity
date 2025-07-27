@@ -21,8 +21,7 @@ const sidebarItems = [
   { id: 'map', label: 'City Map', icon: Map, path: '/map' },
   { id: 'feed', label: 'Community Feed', icon: MessageSquare, path: '/feed' },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/insights' },
-  { id: 'community', label: 'Community', icon: Users, path: '/community' },
-  { id: 'settings', label: 'Settings', icon: Settings, path: '/profile' },
+  // { id: 'community', label: 'Community', icon: Users, path: '/community' },
 ];
 
 export const PersistentLayout = ({ children }: PersistentLayoutProps) => {
