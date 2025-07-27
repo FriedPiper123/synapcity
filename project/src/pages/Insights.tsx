@@ -269,7 +269,7 @@ export default function InsightsPage() {
               <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-purple-600" />
+                    <TrendingUp className="w-5 h-5 text-purple-600" />
                     Historical Performance Trends
                   </CardTitle>
                 </CardHeader>
@@ -304,7 +304,7 @@ export default function InsightsPage() {
                       }}
                     >
                       <ResponsiveContainer width="100%" height={300}>
-                        <BarChart 
+                        <LineChart 
                           data={prepareHistoricalChartData()}
                           margin={{ top: 10, right: 20, left: 20, bottom: 20 }}
                         >
@@ -325,19 +325,21 @@ export default function InsightsPage() {
                           />
                           <ChartTooltip 
                             content={<ChartTooltipContent />}
-                            cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                            cursor={{ strokeDasharray: '3 3' }}
                           />
                           <ChartLegend content={<ChartLegendContent />} />
                           {Object.keys(data.historicalData.monthly_scores).map((category, index) => (
-                            <Bar 
+                            <Line 
                               key={category}
+                              type="monotone"
                               dataKey={category} 
-                              fill={chartColors[index % chartColors.length]}
-                              radius={[2, 2, 0, 0]}
-                              opacity={0.8}
+                              stroke={chartColors[index % chartColors.length]}
+                              strokeWidth={2}
+                              dot={{ r: 4 }}
+                              activeDot={{ r: 6 }}
                             />
                           ))}
-                        </BarChart>
+                        </LineChart>
                       </ResponsiveContainer>
                     </ChartContainer>
                   </div>
