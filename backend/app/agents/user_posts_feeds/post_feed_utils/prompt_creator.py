@@ -660,6 +660,8 @@ def create_image_content_analysis_prompt(kwargs):
     if Path(img_path).exists():
         with open(img_path, 'rb') as f:
             image_bytes = f.read()
+    else:
+        raise FileNotFoundError("Image file not found")
 
     prompt = f"""
 You are a skilled image analyst. Given the following image and related user content, generate a concise and descriptive caption summarizing the main content of the image.

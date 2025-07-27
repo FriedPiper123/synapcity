@@ -10,7 +10,6 @@ if __name__ == "__main__":
     from .constants import GEMINI_API_KEY
     from .post_feed_utils.post_feed_utils import get_all_posts_summary, get_summary_links
     from pprint import pprint
-
     gmo = GeminiModel(GEMINI_API_KEY)
     import time
     for _ in range(3):
