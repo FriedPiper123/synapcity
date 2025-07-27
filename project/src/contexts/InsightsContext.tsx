@@ -109,7 +109,7 @@ export const InsightsProvider = ({ children }: { children: ReactNode }) => {
         await fetchAreaData(currentTimeRange, true);
         setIsAutoFetching(false);
       }
-    }, 12000); // 12 seconds
+    }, 300000); // 12 seconds
 
     setIntervalId(newIntervalId);
   };
