@@ -778,13 +778,7 @@ export default function MapPage() {
         };
         
         setHeatmapData(transformedData);
-        console.log('🗺️ Heatmap data received:', transformedData);
-        console.log('🔺 Issue polygons:', transformedData.issue_polygons);
-        console.log('📊 Total polygons:', 
-          transformedData.issue_polygons.high.length + 
-          transformedData.issue_polygons.medium.length + 
-          transformedData.issue_polygons.low.length
-        );
+
       } else {
         const errorData = await response.json();
         setHeatmapError(errorData.detail || 'Failed to fetch heatmap data');
@@ -900,22 +894,7 @@ export default function MapPage() {
     }
   }, [currentLocation, showHeatmap]);
 
-  // Debug polygon rendering
-  useEffect(() => {
-    if (showHeatmap && heatmapData) {
-      console.log('🔥 Polygon rendering debug:', {
-        showHeatmap,
-        selectedFilter,
-        shouldRender: (selectedFilter === 'all' || selectedFilter === 'issue'),
-        polygonCounts: {
-          high: heatmapData.issue_polygons?.high?.length || 0,
-          medium: heatmapData.issue_polygons?.medium?.length || 0,
-          low: heatmapData.issue_polygons?.low?.length || 0
-        },
-        firstLowPolygon: heatmapData.issue_polygons?.low?.[0]
-      });
-    }
-  }, [showHeatmap, heatmapData, selectedFilter]);
+
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -1094,7 +1073,7 @@ export default function MapPage() {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">City Map</h2>
             <p className="text-sm text-gray-500 mt-1">
-              💡 Click anywhere on the map to change your current location | Red polygons connect similar issues
+              💡 Click anywhere on the map to change your current location | Red polygons & circles show issue areas
             </p>
           </div>
           
@@ -1459,7 +1438,28 @@ export default function MapPage() {
                        </>
                      ) : null}
 
-                                         {/* Heatmap Markers */}
+                                         {/* Issue Affected Area Circles (500m radius) */}
+                     {showHeatmap && heatmapData && filteredData.length > 0 && (
+                       filteredData
+                         .filter(item => item.type === 'issue')
+                         .map((item) => (
+                           <Circle
+                             key={`issue-area-${item.id}`}
+                             center={{ lat: item.latitude, lng: item.longitude }}
+                             radius={50} // 50m radius = 100m diameter
+                             options={{
+                               strokeColor: '#dc2626', // Red color
+                               strokeWeight: 2,
+                               strokeOpacity: 0.8,
+                               fillColor: '#dc2626',
+                               fillOpacity: 0.15,
+                               clickable: false, // Don't interfere with location change
+                             }}
+                           />
+                         ))
+                     )}
+
+                     {/* Heatmap Markers */}
                      {showHeatmap && heatmapData && filteredData.length > 0 && (
                        filteredData.map((item) => (
                          <Marker
@@ -2008,40 +2008,7 @@ export default function MapPage() {
                   </div>
                 </div>
 
-                {/* Unified Polygon Legend */}
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-gray-700">Connected Issue Areas</div>
-                  <div className="text-xs text-gray-600 mb-2">
-                    Red polygons directly connect similar issue coordinates
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="w-4 h-4 bg-red-600 rounded opacity-50"></div>
-                      <span>High Severity Areas ({heatmapData.issue_polygons.high.length})</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="w-4 h-4 bg-red-600 rounded opacity-40"></div>
-                      <span>Medium Severity Areas ({heatmapData.issue_polygons.medium.length})</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="w-4 h-4 bg-red-600 rounded opacity-30"></div>
-                      <span>Low Severity Areas ({heatmapData.issue_polygons.low.length})</span>
-                    </div>
-                  </div>
-                  {/* Show total posts in polygons */}
-                  {(heatmapData.issue_polygons.high.length > 0 || 
-                    heatmapData.issue_polygons.medium.length > 0 || 
-                    heatmapData.issue_polygons.low.length > 0) && (
-                    <div className="text-xs text-gray-500 mt-2">
-                      Total connected posts: {
-                        [...heatmapData.issue_polygons.high, 
-                         ...heatmapData.issue_polygons.medium, 
-                         ...heatmapData.issue_polygons.low].reduce((sum, polygon) => sum + polygon.postCount, 0)
-                      }
-                    </div>
-                  )}
-                </div>
-
+                {/* Heatmap Visualization Legend */}
                 <div className="text-xs text-gray-500">
                   Showing {heatmapData.total_posts} posts within {heatmapData.radius_km}km radius
                 </div>

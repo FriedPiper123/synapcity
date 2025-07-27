@@ -452,9 +452,6 @@ async def get_heatmap_data(
         
         # Create unified polygons for each issue group
         for group_key, group_data in issue_groups.items():
-            print(f"Processing group {group_key} with {len(group_data['coordinates'])} coordinates")
-            print(f"Coordinates: {group_data['coordinates']}")
-            
             if len(group_data['coordinates']) >= 1:  # At least 1 coordinate needed
                 try:
                     # Remove duplicate coordinates first
@@ -466,17 +463,13 @@ async def get_heatmap_data(
                             seen_coords.add(coord_key)
                             unique_coords.append(coord)
                     
-                    print(f"Unique coordinates: {unique_coords}")
-                    
                     if len(unique_coords) == 1:
                         # Single point - create a small polygon around it
                         lat, lon = unique_coords[0]
                         polygon_coords = create_issue_area_polygon(lat, lon, precision=6)
-                        print(f"Single point polygon: {polygon_coords}")
                     else:
                         # Multiple points - create convex hull connecting all points
                         polygon_coords = create_unified_issue_polygon(unique_coords)
-                        print(f"Multi-point polygon: {polygon_coords}")
                     
                     if polygon_coords and len(polygon_coords) >= 3:
                         issue_polygons.append({
@@ -488,17 +481,10 @@ async def get_heatmap_data(
                             'postCount': len(set(group_data['post_ids'])),
                             'title': f"{group_data['category'].title()} Issues ({len(set(group_data['post_ids']))} reports)"
                         })
-                        print(f"Created polygon for group {group_key}")
-                    else:
-                        print(f"Invalid polygon coordinates for group {group_key}: {polygon_coords}")
                         
                 except Exception as e:
                     print(f"Error creating unified polygon for group {group_key}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
                     continue
-            else:
-                print(f"No coordinates for group {group_key}")
         
         # Group polygons by severity for better visualization
         grouped_polygons = {
