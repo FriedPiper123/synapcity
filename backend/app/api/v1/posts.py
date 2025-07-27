@@ -69,17 +69,17 @@ async def create_post(
             "mentioned_location_name": None,
             "geohash": post_geohash,  # Add geohash for efficient queries
         }
-        gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = post_data["content"])
-        if gemini_output['sentiment'].lower() == "vulgar":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Posting vulgar content is against our policy.",
-                    "code": "VULGAR_CONTENT_DETECTED",
-                    "user_action": "SHOW_VULGARITY_WARNING_POPUP",
-                    "description": "Vulgarity is not allowed. Strict action will be taken if this happens again."
-                }
-            )
+        # gemini_output = GeminiAgent(task = "post_analysis", google_search = True, user_post_message = post_data["content"])
+        # if gemini_output['sentiment'].lower() == "vulgar":
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail={
+        #             "message": "Posting vulgar content is against our policy.",
+        #             "code": "VULGAR_CONTENT_DETECTED",
+        #             "user_action": "SHOW_VULGARITY_WARNING_POPUP",
+        #             "description": "Vulgarity is not allowed. Strict action will be taken if this happens again."
+        #         }
+        #     )
 
         db.collection('posts').document(post_id).set(post_data)
         

@@ -12,7 +12,7 @@ from ...agents.user_posts_feeds.gemini_model import GeminiAgent
 
 from ...core.firebase import db
 from ...models.area import Area, AreaTrend
-from ...utils.geohash_utils import get_geohash_cells_for_radius, calculate_distance, create_issue_area_polygon
+from ...utils.geohash_utils import get_geohash_cells_for_radius, calculate_distance, create_issue_area_polygon, create_unified_issue_polygon
 import requests
 import os
 from ...core.config import settings
@@ -405,6 +405,9 @@ async def get_heatmap_data(
         issue_polygons = []
         markers = []
         
+        # Group issue posts by category for unified polygons
+        issue_groups = {}
+        
         for post in all_posts:
             post_lat = post['location'].latitude
             post_lon = post['location'].longitude
@@ -428,23 +431,76 @@ async def get_heatmap_data(
             }
             markers.append(marker_data)
             
-            # Create polygon for issue posts
+            # Group issue posts by category for unified polygons
             if post_type == 'issue':
-                try:
-                    polygon_coords = create_issue_area_polygon(post_lat, post_lon, precision=6)
-                    if polygon_coords:
-                        issue_polygons.append({
-                            'postId': post['postId'],
-                            'coordinates': polygon_coords,
-                            'severity': marker_data['severity'],
-                            'category': post.get('category', 'general'),
-                            'title': marker_data['title']
-                        })
-                except Exception as e:
-                    print(f"Error creating polygon for post {post['postId']}: {str(e)}")
-                    continue
+                category = post.get('category', 'general')
+                severity = marker_data['severity']
+                
+                group_key = f"{category}_{severity}"
+                if group_key not in issue_groups:
+                    issue_groups[group_key] = {
+                        'category': category,
+                        'severity': severity,
+                        'coordinates': [],
+                        'post_ids': [],
+                        'titles': []
+                    }
+                
+                issue_groups[group_key]['coordinates'].append((post_lat, post_lon))
+                issue_groups[group_key]['post_ids'].append(post['postId'])
+                issue_groups[group_key]['titles'].append(marker_data['title'])
         
-        # Group overlapping polygons by severity for better visualization
+        # Create unified polygons for each issue group
+        for group_key, group_data in issue_groups.items():
+            print(f"Processing group {group_key} with {len(group_data['coordinates'])} coordinates")
+            print(f"Coordinates: {group_data['coordinates']}")
+            
+            if len(group_data['coordinates']) >= 1:  # At least 1 coordinate needed
+                try:
+                    # Remove duplicate coordinates first
+                    unique_coords = []
+                    seen_coords = set()
+                    for coord in group_data['coordinates']:
+                        coord_key = (round(coord[0], 6), round(coord[1], 6))
+                        if coord_key not in seen_coords:
+                            seen_coords.add(coord_key)
+                            unique_coords.append(coord)
+                    
+                    print(f"Unique coordinates: {unique_coords}")
+                    
+                    if len(unique_coords) == 1:
+                        # Single point - create a small polygon around it
+                        lat, lon = unique_coords[0]
+                        polygon_coords = create_issue_area_polygon(lat, lon, precision=6)
+                        print(f"Single point polygon: {polygon_coords}")
+                    else:
+                        # Multiple points - create convex hull connecting all points
+                        polygon_coords = create_unified_issue_polygon(unique_coords)
+                        print(f"Multi-point polygon: {polygon_coords}")
+                    
+                    if polygon_coords and len(polygon_coords) >= 3:
+                        issue_polygons.append({
+                            'groupId': group_key,
+                            'category': group_data['category'],
+                            'severity': group_data['severity'],
+                            'coordinates': polygon_coords,
+                            'postIds': list(set(group_data['post_ids'])),  # Remove duplicate post IDs
+                            'postCount': len(set(group_data['post_ids'])),
+                            'title': f"{group_data['category'].title()} Issues ({len(set(group_data['post_ids']))} reports)"
+                        })
+                        print(f"Created polygon for group {group_key}")
+                    else:
+                        print(f"Invalid polygon coordinates for group {group_key}: {polygon_coords}")
+                        
+                except Exception as e:
+                    print(f"Error creating unified polygon for group {group_key}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
+            else:
+                print(f"No coordinates for group {group_key}")
+        
+        # Group polygons by severity for better visualization
         grouped_polygons = {
             'high': [],
             'medium': [],
