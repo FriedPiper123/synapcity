@@ -36,3 +36,5 @@ logs/
 
 
 credentials/
+google-cloud-sdk/
+../google-cloud-sdk/*

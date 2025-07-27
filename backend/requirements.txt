@@ -1,5 +1,6 @@
 # Core Dependencies
 fastapi==0.109.2
+fastapi-utilities
 uvicorn[standard]==0.27.0
 python-multipart==0.0.9
 python-jose[cryptography]==3.3.0
@@ -65,3 +66,4 @@ rich==13.7.1
 # Scraping
 aiohttp
 bs4
+google-genai

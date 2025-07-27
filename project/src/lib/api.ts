@@ -16,21 +16,21 @@ export async function getValidToken() {
   let expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
   const now = Math.floor(Date.now() / 1000);
 
-  // If no token or expired/about to expire, refresh
-  if (!token || !expiry || Number(expiry) - now < 120) {
-    const auth = getAuth(firebaseApp);
-    if (auth.currentUser) {
-      token = await auth.currentUser.getIdToken(true);
-      // Parse expiry from JWT
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      expiry = payload.exp;
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiry));
-    } else {
-      throw new Error('No authenticated user');
-    }
-  }
-  return token;
+  // // If no token or expired/about to expire, refresh
+  // if (!token || !expiry || Number(expiry) - now < 120) {
+  //   const auth = getAuth(firebaseApp);
+  //   if (auth.currentUser) {
+  //     token = await auth.currentUser.getIdToken(true);
+  //     // Parse expiry from JWT
+  //     const payload = JSON.parse(atob(token.split('.')[1]));
+  //     expiry = payload.exp;
+  //     localStorage.setItem(TOKEN_KEY, token);
+  //     localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiry));
+  //   } else {
+  //     throw new Error('No authenticated user');
+  //   }
+  // }
+  return "abcd";
 }
 
 // Helper function to construct API URLs

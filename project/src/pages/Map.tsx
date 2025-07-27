@@ -909,7 +909,7 @@ export default function MapPage() {
         return;
       }
       
-      const res = await apiFetch(`http://0.0.0.0:8000/api/v1/posts/nearby?latitude=${location.latitude}&longitude=${location.longitude}&radius_km=5.0`);
+      const res = await apiFetch(`/api/v1/posts/nearby?latitude=${location.latitude}&longitude=${location.longitude}&radius_km=5.0`);
       
       const data = await res.json();
       const transformedData: MapDataItem[] = data?.map((post: any, index: number) => ({
