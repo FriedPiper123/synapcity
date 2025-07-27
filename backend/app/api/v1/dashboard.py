@@ -275,7 +275,7 @@ async def get_dashboard_stats_endpoint(
     latitude: float = Query(..., description="Latitude of the user's location"),
     longitude: float = Query(..., description="Longitude of the user's location"),
     radius_km: float = Query(5.0, description="Radius in kilometers to analyze", ge=0.1, le=50.0),
-    current_user: User = Depends(get_current_active_user)
+    # current_user: User = Depends(get_current_active_user)
 ):
     """
     Get dashboard statistics for the user's area.
@@ -309,7 +309,7 @@ async def get_recent_activities_endpoint(
     longitude: float = Query(..., description="Longitude of the user's location"),
     radius_km: float = Query(5.0, description="Radius in kilometers to analyze", ge=0.1, le=50.0),
     limit: int = Query(10, description="Maximum number of activities to return", ge=1, le=50),
-    current_user: User = Depends(get_current_active_user)
+    # current_user: User = Depends(get_current_active_user)
 ):
     """
     Get recent activities from the user's area.
@@ -348,7 +348,7 @@ async def get_recent_activities_endpoint(
 @router.post("/activity/enhance")
 async def enhance_activity_with_external_links(
     request: dict,
-    current_user: User = Depends(get_current_active_user)
+    # current_user: User = Depends(get_current_active_user)
 ):
     """
     Enhance activity data with external links using get_summary_links function.
