@@ -73,9 +73,7 @@ export const PersistentLayout = ({ children }: PersistentLayoutProps) => {
           <div className="p-4">
             {/* Logo */}
             <div className="flex items-center space-x-3 mb-8">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">C</span>
-              </div>
+              <img src="/icon.png" alt="SynapCity Logo" className="w-10 h-10 rounded-lg" />
               <span className="text-xl font-bold text-gray-800">SynapCity</span>
             </div>
 

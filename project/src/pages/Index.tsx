@@ -16,9 +16,12 @@ const Index = () => {
         {/* Header */}
         <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">SynapCity</h1>
-              <p className="text-sm text-gray-600">Your local community hub</p>
+            <div className="flex items-center space-x-3">
+              <img src="/icon.png" alt="SynapCity Logo" className="w-12 h-12 rounded-lg" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">SynapCity</h1>
+                <p className="text-sm text-gray-600">Your local community hub</p>
+              </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
